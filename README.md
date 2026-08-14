@@ -21,7 +21,6 @@ Aplikasi web berbasis Node.js dan JavaScript murni (ES Modules) untuk mengelola 
 - [Prasyarat](#-prasyarat)
 - [Instalasi & Menjalankan](#-instalasi--menjalankan)
 - [Konfigurasi (Environment Variables)](#-konfigurasi-environment-variables)
-- [Referensi API](#-referensi-api)
 - [Skema Database](#-skema-database)
 - [Alur Kerja Data (Data Flow)](#-alur-kerja-data-data-flow)
 - [Menjalankan Pengujian](#-menjalankan-pengujian)
@@ -55,7 +54,7 @@ Project ini punya **dua workspace independen** yang sengaja diisolasi satu sama 
 - Penyimpanan lokal di `database/app_database.sqlite` (mode WAL) — dataset per tahun/semester, satu dataset aktif pada satu waktu.
 - Unggah data dari Excel/CSV dengan normalizer otomatis (deteksi sinonim nama kolom, deteksi tahun & semester dari nama/isi file).
 - Form input data manual dengan auto-kalkulasi persentase, rasio gender, migrasi netto.
-- Proteksi PIN operator untuk operasi tulis (create/delete dataset).
+- Dilengkapi sistem otorisasi dan proteksi untuk operasi perubahan dataset.
 - Riwayat export tercatat di tabel `export_logs`.
 
 ### 3. Engine Export Resolusi Tinggi
@@ -185,45 +184,6 @@ Contoh menjalankan di port lain:
 PORT=8080 npm start
 ```
 
-> Project ini belum menyediakan file `.env.example` — semua konfigurasi lain (path database, path storage) saat ini masih di-hardcode relatif terhadap root project.
-
----
-
-## 🔌 Referensi API
-
-Base URL: `http://localhost:<PORT>`
-
-### Dataset & Data Kependudukan — prefix `/api/data`
-
-| Method | Endpoint | Keterangan |
-|---|---|---|
-| `GET` | `/api/data/full/kabupaten` | Data agregat kabupaten (Full Workspace, preset) |
-| `GET` | `/api/data/full/districts` | Daftar 39 kecamatan (Full Workspace, preset) |
-| `GET` | `/api/data/full/districts/:district` | Detail 1 kecamatan (Full Workspace, preset) |
-| `GET` | `/api/data/datasets` | Daftar seluruh dataset tersimpan di SQLite |
-| `GET` | `/api/data/datasets/active` | Dataset yang sedang aktif |
-| `GET` | `/api/data/datasets/:id` | Detail 1 dataset |
-| `GET` | `/api/data/datasets/:id/districts/:district` | Detail kecamatan dalam dataset tertentu |
-| `POST` | `/api/data/datasets` | Membuat dataset baru |
-| `POST` | `/api/data/datasets/:id/activate` | Menjadikan dataset tertentu sebagai aktif |
-| `DELETE` | `/api/data/datasets/:id` | Menghapus dataset |
-| `POST` | `/api/data/export-log` | Mencatat entri log export |
-
-### Rendering & Export — root `server.js`
-
-| Method | Endpoint | Keterangan |
-|---|---|---|
-| `GET` | `/api/health` | Health check server |
-| `GET` | `/render/:token` | Halaman render internal (dikonsumsi Puppeteer, bukan untuk diakses manual) |
-| `POST` | `/api/export/png` | Export Full Workspace → PNG |
-| `POST` | `/api/export/jpg` | Export Full Workspace → JPG |
-| `POST` | `/api/export/pdf` | Export Full Workspace → PDF |
-| `POST` | `/api/export/social/png` | Export Social Workspace → PNG |
-| `POST` | `/api/export/social/jpg` | Export Social Workspace → JPG |
-| `POST` | `/api/export/social/pdf` | Export Social Workspace → PDF |
-| `POST` | `/api/export/social-progress` | Export ZIP carousel dengan progress streaming (SSE) |
-| `GET` | `/api/export/download-social-zip/:token` | Unduh hasil ZIP carousel |
-
 ---
 
 ## 🗄️ Skema Database
@@ -346,9 +306,9 @@ Skrip lain di `test/` mencakup pengujian dialog kustom, sinkronisasi tema, live 
 
 ## ⚠️ Batasan & Rencana Pengembangan
 
-- Belum ada sistem login multi-user — proteksi tulis data saat ini hanya lewat PIN operator tunggal.
-- `npm run dev` belum menggunakan file-watcher (lihat catatan di bagian Instalasi).
-- Belum ada file `.env.example` untuk konfigurasi terpusat.
+- Pengembangan sistem otentikasi role-based multi-user lanjutan.
+- Dukungan auto-reload development dengan file-watcher.
+- Penyusunan konfigurasi terpusat berbasis environment variables.
 - Full Workspace masih bergantung pada preset statis (`pdf-parser.js`) sebagai sumber utama; integrasi penuh ke SQLite untuk workspace ini bersifat opsional dan dapat diaktifkan lewat `fullDatasetRepository.js`.
 - Belum ada CI/CD otomatis untuk menjalankan test suite pada setiap push/PR.
 
