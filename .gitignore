@@ -28,3 +28,5 @@ storage/backups/*
 Thumbs.db
 .vscode/
 .idea/
+*.sqlite.bak
+scratch/

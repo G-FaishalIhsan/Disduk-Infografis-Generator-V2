@@ -14,7 +14,9 @@ import { SocialExportEngine } from './engine/social-export-engine.js';
 import { PreviewEngine } from './engine/preview-engine.js';
 import { DatasetService } from './engine/dataset-service.js';
 import { DatasetManager } from './excel/datasetManager.js';
+import { DbService } from './services/db-service.js';
 import { ThemeController } from './ui/theme-controller.js';
+import { DialogModal } from './ui/dialog-modal.js';
 
 export class App {
     constructor() {
@@ -96,10 +98,25 @@ export class App {
     }
 
     /**
-     * 2. Initialize V2 Social Workspace State (Flat Excel Payload)
+     * 2. Initialize V2 Social Workspace State (Flat Excel Payload / SQLite)
      */
-    initializeSocialWorkspace() {
+    async initializeSocialWorkspace() {
         this.activeSocialDataset = this.datasetManager.getDataset(2025, 2);
+        try {
+            const dbData = await DbService.getActiveDataset('social') || await DbService.getDatasetById('social-2025-2');
+            if (dbData) {
+                this.activeSocialDataset = dbData;
+                DatasetService.setActiveDataset(dbData);
+                if (this.sidebar) {
+                    this.sidebar.updateActiveDatasetInfo(dbData);
+                }
+                if (this.activeWorkspace === 'social') {
+                    await this.handleSocialPreview(this.selectedSocialTemplateId);
+                }
+            }
+        } catch (err) {
+            console.warn('[App] SQLite active dataset init note:', err.message);
+        }
     }
 
     /**
@@ -144,6 +161,7 @@ export class App {
             onTemplateChange: (templateId) => this.handleTemplateChange(templateId),
             onModeChange: (mode, district) => this.handleModeChange(mode, district),
             onDistrictChange: (district) => this.handleDistrictChange(district),
+            onDatasetSelect: (datasetObj) => this.handleDatasetSelected(datasetObj),
             onFileUpload: (file) => this.handleFileUpload(file),
             onGenerate: () => this.handleGenerate(),
             onExportPNG: () => this.handleExport('png'),
@@ -337,58 +355,98 @@ export class App {
     }
 
     async handleExport(format) {
-        if (this.activeWorkspace === 'social') {
-            // V2 Social Export Engine
-            if (format === 'png') await this.socialExportEngine.exportPNG(1);
-            else if (format === 'jpg') await this.socialExportEngine.exportJPG(1);
-            else if (format === 'pdf') await this.socialExportEngine.exportPDF();
-        } else {
-            // V1 Export Engine
-            const targetRegion = this.currentMode === 'Kabupaten' ? 'KABUPATEN' : this.selectedDistrict;
-            const filename = `INFOGRAFIS_${targetRegion}_${Date.now()}`;
-            const payloadData = {
-                templateId: this.selectedTemplateId,
-                data: this.activeFullData || (targetRegion === 'KABUPATEN'
-                    ? this.pdfParser.getKabupatenData()
-                    : this.pdfParser.getDistrictData(targetRegion))
-            };
-
-            if (format === 'png') {
-                await this.exportService.exportPNG(this.iframeElement, `${filename}.png`, payloadData);
-            } else if (format === 'jpg') {
-                await this.exportService.exportJPG(this.iframeElement, `${filename}.jpg`, payloadData);
-            } else if (format === 'pdf') {
-                await this.exportService.exportPDF(this.iframeElement, `${filename}.pdf`, payloadData);
+        if (this.isExporting) {
+            if (this.exportService) {
+                this.exportService.showWarningToast(
+                    'Ekspor Sedang Berjalan',
+                    'Mohon tunggu proses ekspor saat ini selesai untuk mencegah penumpukan antrean.'
+                );
             }
+            return;
+        }
+
+        this.isExporting = true;
+        if (this.sidebar) this.sidebar.setExportingState(true);
+
+        try {
+            if (this.activeWorkspace === 'social') {
+                // V2 Social Export Engine
+                if (format === 'png') await this.socialExportEngine.exportPNG(1);
+                else if (format === 'jpg') await this.socialExportEngine.exportJPG(1);
+                else if (format === 'pdf') await this.socialExportEngine.exportPDF();
+            } else {
+                // V1 Export Engine
+                const targetRegion = this.currentMode === 'Kabupaten' ? 'KABUPATEN' : this.selectedDistrict;
+                const filename = `INFOGRAFIS_${targetRegion}_${Date.now()}`;
+                const payloadData = {
+                    templateId: this.selectedTemplateId,
+                    data: this.activeFullData || (targetRegion === 'KABUPATEN'
+                        ? this.pdfParser.getKabupatenData()
+                        : this.pdfParser.getDistrictData(targetRegion))
+                };
+
+                if (format === 'png') {
+                    await this.exportService.exportPNG(this.iframeElement, `${filename}.png`, payloadData);
+                } else if (format === 'jpg') {
+                    await this.exportService.exportJPG(this.iframeElement, `${filename}.jpg`, payloadData);
+                } else if (format === 'pdf') {
+                    await this.exportService.exportPDF(this.iframeElement, `${filename}.pdf`, payloadData);
+                }
+            }
+        } finally {
+            this.isExporting = false;
+            if (this.sidebar) this.sidebar.setExportingState(false);
         }
     }
 
     async handleExportZIP() {
-        if (this.activeWorkspace === 'social') {
-            // V2 Social Export Engine ZIP
-            await this.socialExportEngine.exportZIP();
-        } else {
-            // V1 Export Engine
-            const slide1Frame = document.querySelector('#preview-social-slide1');
-            const slide2Frame = document.querySelector('#preview-social-slide2');
-
-            if (!slide1Frame || !slide2Frame) {
-                alert('Slide pratinjau belum siap.');
-                return;
+        if (this.isExporting) {
+            if (this.exportService) {
+                this.exportService.showWarningToast(
+                    'Ekspor Sedang Berjalan',
+                    'Mohon tunggu proses ekspor saat ini selesai untuk mencegah penumpukan antrean.'
+                );
             }
+            return;
+        }
 
-            const doc1 = slide1Frame.contentDocument || slide1Frame.contentWindow.document;
-            const doc2 = slide2Frame.contentDocument || slide2Frame.contentWindow.document;
+        this.isExporting = true;
+        if (this.sidebar) this.sidebar.setExportingState(true);
 
-            const el1 = doc1.querySelector('.slide-canvas') || doc1.body;
-            const el2 = doc2.querySelector('.slide-canvas') || doc2.body;
+        try {
+            if (this.activeWorkspace === 'social') {
+                // V2 Social Export Engine ZIP
+                await this.socialExportEngine.exportZIP();
+            } else {
+                // V1 Export Engine
+                const slide1Frame = document.querySelector('#preview-social-slide1');
+                const slide2Frame = document.querySelector('#preview-social-slide2');
 
-            const modeStr = this.currentMode === 'Kabupaten' ? 'KABUPATEN' : this.selectedDistrict;
-            const filename = `CAROUSEL_SOCIAL_${modeStr}_${Date.now()}`;
+                if (!slide1Frame || !slide2Frame) {
+                    await DialogModal.alert({
+                        title: 'Pratinjau Belum Siap',
+                        message: 'Slide pratinjau belum siap untuk diproses.',
+                        type: 'warning'
+                    });
+                    return;
+                }
 
-            if (this.exportService.exportCarouselZip) {
-                await this.exportService.exportCarouselZip([el1, el2], filename);
+                const doc1 = slide1Frame.contentDocument || slide1Frame.contentWindow.document;
+                const doc2 = slide2Frame.contentDocument || slide2Frame.contentWindow.document;
+
+                const el1 = doc1.querySelector('.slide-canvas') || doc1.body;
+                const el2 = doc2.querySelector('.slide-canvas') || doc2.body;
+
+                const modeStr = this.currentMode === 'Kabupaten' ? 'KABUPATEN' : this.selectedDistrict;
+                const filename = `CAROUSEL_SOCIAL_${modeStr}_${Date.now()}`;
+
+                if (this.exportService.exportCarouselZip) {
+                    await this.exportService.exportCarouselZip([el1, el2], filename);
+                }
             }
+        } finally {
+            this.isExporting = false;
+            if (this.sidebar) this.sidebar.setExportingState(false);
         }
     }
 }

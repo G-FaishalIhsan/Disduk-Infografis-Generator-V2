@@ -4,6 +4,7 @@
  */
 import { normalizePopulationData } from '../models/data-normalizer.js';
 import { AnalyticsEngine } from '../engine/analytics-engine.js';
+import { DbService } from '../services/db-service.js';
 
 // Pre-extracted authentic 39 Kecamatan dataset from Profil Kependudukan Tasikmalaya 2025
 const PRESET_DISTRICTS = {
@@ -98,6 +99,29 @@ const PRESET_DISTRICTS = {
 export class PdfParser {
     constructor() {
         this.parsedDistricts = { ...PRESET_DISTRICTS };
+        this.cachedKabupaten = null;
+        this.cachedDistricts = {};
+        this.syncWithDatabase().catch(err => console.warn('[PdfParser] DB sync notice:', err.message));
+    }
+
+    async syncWithDatabase() {
+        try {
+            const kab = await DbService.getFullKabupaten();
+            if (kab) {
+                this.cachedKabupaten = kab;
+            }
+            const dists = await DbService.getFullDistrictsList();
+            if (dists && Array.isArray(dists)) {
+                for (const d of dists) {
+                    const distData = await DbService.getFullDistrict(d.name);
+                    if (distData) {
+                        this.cachedDistricts[d.name.toUpperCase().trim()] = distData;
+                    }
+                }
+            }
+        } catch (err) {
+            console.warn('[PdfParser] Sync fallback:', err.message);
+        }
     }
 
     getDistrictList() {
@@ -105,6 +129,9 @@ export class PdfParser {
     }
 
     getKabupatenData() {
+        if (this.cachedKabupaten) {
+            return this.cachedKabupaten;
+        }
         const rawData = normalizePopulationData({
             metadata: {
                 nama_wilayah: 'KABUPATEN TASIKMALAYA',
@@ -118,6 +145,9 @@ export class PdfParser {
     getDistrictData(districtKey) {
         if (!districtKey) return this.getKabupatenData();
         const key = districtKey.toUpperCase().replace('KECAMATAN ', '').trim();
+        if (this.cachedDistricts[key]) {
+            return this.cachedDistricts[key];
+        }
         const raw = this.parsedDistricts[key];
         if (!raw) {
             return this.getKabupatenData();

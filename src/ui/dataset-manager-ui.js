@@ -5,11 +5,14 @@
  * dynamic status badges, empty states, and dynamic year options.
  */
 import { DatasetManager } from '../excel/datasetManager.js';
+import { DbService } from '../services/db-service.js';
+import { DialogModal } from './dialog-modal.js';
 
 export class DatasetManagerUI {
     constructor(options = {}) {
         this.datasetManager = new DatasetManager();
         this.onDatasetSelect = options.onDatasetSelect || (() => {});
+        this.onOpenDataEntry = options.onOpenDataEntry || (() => {});
         this.isOpen = false;
         this.showInfoModal = false;
 
@@ -24,7 +27,9 @@ export class DatasetManagerUI {
         this.renderModal();
     }
 
-    show() {
+    async show() {
+        await this.datasetManager.syncWithDatabase();
+        this.renderModal();
         this.toggleModal(true);
     }
 
@@ -64,7 +69,11 @@ export class DatasetManagerUI {
             document.body.appendChild(modalEl);
         }
 
-        const availableYears = this.datasetManager.getAvailableYears();
+        const yearsList = this.datasetManager.getAvailableYears();
+        if (this.selectedYear && !yearsList.includes(Number(this.selectedYear))) {
+            yearsList.unshift(Number(this.selectedYear));
+        }
+        const availableYears = Array.from(new Set(yearsList)).sort((a, b) => b - a);
         const dataset = this.datasetManager.getDataset(this.selectedYear, this.selectedSemester);
 
         modalEl.className = `fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-250 ${this.isOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none hidden'}`;
@@ -96,99 +105,125 @@ export class DatasetManagerUI {
                 <div class="p-6 space-y-5">
                     
                     <!-- MAIN DYNAMIC FILTERS (SECTION B) -->
-                    <div class="grid grid-cols-2 gap-4 p-4 rounded-xl border" style="background-color: var(--color-bg-surface-elevated); border-color: var(--color-border-subtle);">
-                        <div>
-                            <label class="block text-[11px] font-extrabold uppercase tracking-wider mb-1.5" style="color: var(--color-text-muted);">Tahun Data</label>
-                            <select id="dm-select-year" class="v2-select font-bold text-xs">
-                                ${availableYears.map(y => `<option value="${y}" ${this.selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
-                            </select>
+                    <div class="flex items-center justify-between gap-3">
+                        <div class="flex-1 grid grid-cols-2 gap-3 p-3 rounded-xl border" style="background-color: var(--color-bg-surface-elevated); border-color: var(--color-border-subtle);">
+                            <div>
+                                <label class="block text-[10px] font-extrabold uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">Tahun Data</label>
+                                <select id="dm-select-year" class="v2-select font-bold text-xs w-full">
+                                    ${availableYears.map(y => `<option value="${y}" ${this.selectedYear === y ? 'selected' : ''}>${y}</option>`).join('')}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block text-[10px] font-extrabold uppercase tracking-wider mb-1" style="color: var(--color-text-muted);">Semester Data</label>
+                                <select id="dm-select-semester" class="v2-select font-bold text-xs w-full">
+                                    <option value="1" ${this.selectedSemester === 1 ? 'selected' : ''}>Semester 1</option>
+                                    <option value="2" ${this.selectedSemester === 2 ? 'selected' : ''}>Semester 2</option>
+                                </select>
+                            </div>
                         </div>
 
-                        <div>
-                            <label class="block text-[11px] font-extrabold uppercase tracking-wider mb-1.5" style="color: var(--color-text-muted);">Semester Data</label>
-                            <select id="dm-select-semester" class="v2-select font-bold text-xs">
-                                <option value="1" ${this.selectedSemester === 1 ? 'selected' : ''}>Semester 1</option>
-                                <option value="2" ${this.selectedSemester === 2 ? 'selected' : ''}>Semester 2</option>
-                            </select>
-                        </div>
+                        <button id="btn-open-data-entry-from-dm" class="px-4 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold transition flex flex-col items-center justify-center gap-1 shadow-sm flex-shrink-0 active:scale-95" title="Input & Kelola Dataset Baru">
+                            <i class="fa-solid fa-file-circle-plus text-base"></i>
+                            <span class="text-[10px] tracking-wide">+ Input Baru</span>
+                        </button>
                     </div>
 
                     <!-- DATASET CARD & DETAILS (SECTION C) -->
                     <div id="dm-dataset-card-container">
-                        ${dataset ? `
-                            <div class="p-5 rounded-2xl border space-y-4 shadow-sm" style="background-color: var(--color-bg-surface-elevated); border-color: var(--color-border-subtle);">
-                                
-                                <!-- CARD HEADER: Status Badge & File Name -->
-                                <div class="flex items-center justify-between">
-                                    <div class="flex items-center gap-2 min-w-0 pr-2">
-                                        <i class="fa-solid fa-file-excel text-emerald-500 text-lg flex-shrink-0"></i>
-                                        <span class="text-xs font-extrabold truncate" style="color: var(--color-text-main);" title="${dataset.filename}">${dataset.filename}</span>
+                        ${(() => {
+                            if (!dataset) {
+                                return `
+                                    <!-- EMPTY STATE -->
+                                    <div class="p-6 rounded-2xl border text-center space-y-3" style="background-color: var(--color-bg-surface-elevated); border-color: var(--color-border-subtle);">
+                                        <div class="w-10 h-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto text-base">
+                                            <i class="fa-solid fa-folder-open"></i>
+                                        </div>
+                                        <div>
+                                            <h4 class="text-xs font-extrabold" style="color: var(--color-text-main);">Belum ada dataset untuk periode ini.</h4>
+                                            <p class="text-[11px] mt-1" style="color: var(--color-text-muted);">Belum ada data JUMDUK untuk Tahun ${this.selectedYear} Semester ${this.selectedSemester}.</p>
+                                        </div>
+                                        <div class="pt-2">
+                                            <button id="btn-add-new-dataset-placeholder" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold transition inline-flex items-center justify-center gap-1.5">
+                                                <i class="fa-solid fa-cloud-arrow-up"></i> Upload Dataset
+                                            </button>
+                                        </div>
                                     </div>
-                                    <span class="v2-badge ${dataset.statusBadgeClass || 'v2-badge-active'} flex-shrink-0">${dataset.statusBadge || 'TERSEDIA'}</span>
-                                </div>
+                                `;
+                            }
 
-                                <!-- FILE METADATA GRID -->
-                                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] p-3 rounded-xl border" style="background-color: var(--color-bg-surface); border-color: var(--color-border-subtle);">
-                                    <div>
-                                        <span class="block font-semibold" style="color: var(--color-text-muted);">Ukuran</span>
-                                        <span class="font-extrabold" style="color: var(--color-text-main);">${this.formatFileSize(dataset.fileSize || dataset.sizeBytes)}</span>
-                                    </div>
-                                    <div>
-                                        <span class="block font-semibold" style="color: var(--color-text-muted);">Periode</span>
-                                        <span class="font-extrabold text-emerald-500">Sem ${dataset.semester} ${dataset.year}</span>
-                                    </div>
-                                    <div>
-                                        <span class="block font-semibold" style="color: var(--color-text-muted);">Tanggal Upload</span>
-                                        <span class="font-extrabold" style="color: var(--color-text-main);">${this.formatDate(dataset.uploadedAt)}</span>
-                                    </div>
-                                    <div>
-                                        <span class="block font-semibold" style="color: var(--color-text-muted);">Terakhir Digunakan</span>
-                                        <span class="font-extrabold" style="color: var(--color-text-main);">${dataset.lastUsedAt ? this.formatDate(dataset.lastUsedAt) : 'Belum Pernah'}</span>
-                                    </div>
-                                </div>
+                            // Dynamic check: Is this dataset genuinely the active one?
+                            const activeEntry = Object.values(this.datasetManager.registry).find(d => (d.isActive === 1 || d.isActive === true || d.is_active === 1 || d.status === 'AKTIF'));
+                            const isDatasetActive = activeEntry 
+                                ? (Number(activeEntry.year) === Number(dataset.year) && Number(activeEntry.semester) === Number(dataset.semester))
+                                : Boolean(dataset.isActive === 1 || dataset.isActive === true || dataset.is_active === 1 || dataset.status === 'AKTIF');
+                            
+                            const badgeText = isDatasetActive ? 'AKTIF' : 'TERSEDIA';
+                            const badgeClass = isDatasetActive ? 'v2-badge-active' : 'v2-badge-available';
 
-                                <!-- DATASET SUMMARY STATISTICS -->
-                                <div class="grid grid-cols-3 gap-2 p-3 rounded-xl border text-[11px] font-bold text-center"
-                                     style="background-color: var(--color-bg-surface); border-color: var(--color-border-subtle);">
-                                    <div class="flex items-center gap-1.5" style="color: var(--color-text-main);">
-                                        <i class="fa-solid fa-city text-emerald-500"></i>
-                                        <span>${dataset.summary ? dataset.summary.totalKecamatan : 39} Kecamatan</span>
+                            return `
+                                <div class="p-5 rounded-2xl border space-y-4 shadow-sm" style="background-color: var(--color-bg-surface-elevated); border-color: var(--color-border-subtle);">
+                                    
+                                    <!-- CARD HEADER: Status Badge & File Name -->
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-2 min-w-0 pr-2">
+                                            <i class="fa-solid fa-file-excel text-emerald-500 text-lg flex-shrink-0"></i>
+                                            <span class="text-xs font-extrabold truncate" style="color: var(--color-text-main);" title="${dataset.filename}">${dataset.filename}</span>
+                                        </div>
+                                        <span class="v2-badge ${badgeClass} flex-shrink-0">${badgeText}</span>
                                     </div>
-                                    <div class="flex items-center gap-1.5" style="color: var(--color-text-main);">
-                                        <i class="fa-solid fa-map-location-dot text-indigo-500"></i>
-                                        <span>${dataset.summary ? dataset.summary.totalDesa : 351} Desa</span>
-                                    </div>
-                                    <div class="flex items-center gap-1.5 text-emerald-500">
-                                        <i class="fa-solid fa-users"></i>
-                                        <span>${this.formatNumber(dataset.summary ? dataset.summary.totalPenduduk : 2026081)} Penduduk</span>
-                                    </div>
-                                </div>
 
-                                <!-- MAIN ACTION BUTTON -->
-                                <div class="pt-1">
-                                    <button id="btn-use-dataset" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md active:scale-95">
-                                        <i class="fa-solid fa-circle-play text-amber-300"></i> Gunakan Dataset
-                                    </button>
-                                </div>
+                                    <!-- FILE METADATA GRID -->
+                                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] p-3 rounded-xl border" style="background-color: var(--color-bg-surface); border-color: var(--color-border-subtle);">
+                                        <div>
+                                            <span class="block font-semibold" style="color: var(--color-text-muted);">Ukuran</span>
+                                            <span class="font-extrabold" style="color: var(--color-text-main);">${this.formatFileSize(dataset.fileSize || dataset.sizeBytes)}</span>
+                                        </div>
+                                        <div>
+                                            <span class="block font-semibold" style="color: var(--color-text-muted);">Periode</span>
+                                            <span class="font-extrabold text-emerald-500">Sem ${dataset.semester} ${dataset.year}</span>
+                                        </div>
+                                        <div>
+                                            <span class="block font-semibold" style="color: var(--color-text-muted);">Tanggal Upload</span>
+                                            <span class="font-extrabold" style="color: var(--color-text-main);">${this.formatDate(dataset.uploadedAt)}</span>
+                                        </div>
+                                        <div>
+                                            <span class="block font-semibold" style="color: var(--color-text-muted);">Terakhir Digunakan</span>
+                                            <span class="font-extrabold" style="color: var(--color-text-main);">${dataset.lastUsedAt ? this.formatDate(dataset.lastUsedAt) : 'Belum Pernah'}</span>
+                                        </div>
+                                    </div>
 
-                            </div>
-                        ` : `
-                            <!-- EMPTY STATE -->
-                            <div class="p-6 rounded-2xl border text-center space-y-3" style="background-color: var(--color-bg-surface-elevated); border-color: var(--color-border-subtle);">
-                                <div class="w-10 h-10 rounded-full bg-amber-500/10 text-amber-500 flex items-center justify-center mx-auto text-base">
-                                    <i class="fa-solid fa-folder-open"></i>
+                                    <!-- DATASET SUMMARY STATISTICS -->
+                                    <div class="grid grid-cols-3 gap-2 p-3 rounded-xl border text-[11px] font-bold text-center"
+                                         style="background-color: var(--color-bg-surface); border-color: var(--color-border-subtle);">
+                                        <div class="flex items-center gap-1.5" style="color: var(--color-text-main);">
+                                            <i class="fa-solid fa-city text-emerald-500"></i>
+                                            <span>${dataset.summary ? dataset.summary.totalKecamatan : 39} Kecamatan</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5" style="color: var(--color-text-main);">
+                                            <i class="fa-solid fa-map-location-dot text-indigo-500"></i>
+                                            <span>${dataset.summary ? dataset.summary.totalDesa : 351} Desa</span>
+                                        </div>
+                                        <div class="flex items-center gap-1.5 text-emerald-500">
+                                            <i class="fa-solid fa-users"></i>
+                                            <span>${this.formatNumber(dataset.summary ? dataset.summary.totalPenduduk : 2026081)} Penduduk</span>
+                                        </div>
+                                    </div>
+
+                                    <!-- MAIN ACTION BUTTONS -->
+                                    <div class="pt-1 flex items-center gap-2">
+                                        <button id="btn-use-dataset" class="flex-1 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-extrabold uppercase tracking-wider flex items-center justify-center gap-2 transition shadow-md active:scale-95">
+                                            <i class="fa-solid fa-circle-play text-amber-300"></i> Gunakan Dataset
+                                        </button>
+                                        <button id="btn-delete-dataset" type="button" class="px-3.5 py-2.5 rounded-xl border text-xs font-extrabold flex items-center justify-center gap-1.5 transition shadow-sm ${isDatasetActive ? 'opacity-40 cursor-not-allowed text-slate-500 border-slate-700 bg-slate-800/40' : 'text-rose-400 border-rose-500/40 hover:bg-rose-500/10 hover:border-rose-500 active:scale-95'}" title="${isDatasetActive ? 'Dataset sedang aktif digunakan' : 'Hapus dataset ini dari database'}">
+                                            <i class="fa-solid fa-trash-can"></i> Hapus
+                                        </button>
+                                    </div>
+
                                 </div>
-                                <div>
-                                    <h4 class="text-xs font-extrabold" style="color: var(--color-text-main);">Belum ada dataset untuk periode ini.</h4>
-                                    <p class="text-[11px] mt-1" style="color: var(--color-text-muted);">Belum ada data JUMDUK untuk Tahun ${this.selectedYear} Semester ${this.selectedSemester}.</p>
-                                </div>
-                                <div class="pt-2">
-                                    <button id="btn-add-new-dataset-placeholder" class="py-2 px-4 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold transition inline-flex items-center justify-center gap-1.5">
-                                        <i class="fa-solid fa-cloud-arrow-up"></i> Upload Dataset
-                                    </button>
-                                </div>
-                            </div>
-                        `}
+                            `;
+                        })()}
+                    </div>
 
                         <!-- SECONDARY BUTTON: "Upload Dataset Baru" -->
                         ${dataset ? `
@@ -257,35 +292,130 @@ export class DatasetManagerUI {
         const semesterSelect = modalEl.querySelector('#dm-select-semester');
         
         if (yearSelect) {
-            yearSelect.addEventListener('change', (e) => {
+            yearSelect.addEventListener('change', async (e) => {
                 this.selectedYear = Number(e.target.value);
+                await this.datasetManager.getDatasetAsync(this.selectedYear, this.selectedSemester);
                 this.renderModal();
             });
         }
         if (semesterSelect) {
-            semesterSelect.addEventListener('change', (e) => {
+            semesterSelect.addEventListener('change', async (e) => {
                 this.selectedSemester = Number(e.target.value);
+                await this.datasetManager.getDatasetAsync(this.selectedYear, this.selectedSemester);
                 this.renderModal();
             });
         }
 
         const btnUse = modalEl.querySelector('#btn-use-dataset');
         if (btnUse) {
-            btnUse.addEventListener('click', () => {
-                const ds = this.datasetManager.getDataset(this.selectedYear, this.selectedSemester);
+            btnUse.addEventListener('click', async () => {
+                const yr = Number(modalEl.querySelector('#dm-select-year')?.value || this.selectedYear);
+                const sem = Number(modalEl.querySelector('#dm-select-semester')?.value || this.selectedSemester);
+                this.selectedYear = yr;
+                this.selectedSemester = sem;
+
+                btnUse.disabled = true;
+                btnUse.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Mengaktifkan...';
+                let ds = await this.datasetManager.getDatasetAsync(yr, sem);
                 if (ds) {
-                    this.datasetManager.markAsUsed(this.selectedYear, this.selectedSemester);
-                    this.onDatasetSelect(ds);
+                    const targetId = ds.id || `social-${yr}-${sem}`;
+                    await DbService.setActiveDataset(targetId);
+                    this.datasetManager.markAsUsed(yr, sem);
+                    if (typeof this.onDatasetSelect === 'function') {
+                        this.onDatasetSelect(ds);
+                    }
                     this.toggleModal(false);
+                } else {
+                    await DialogModal.alert({
+                        title: 'Gagal Memuat Data',
+                        message: `Tidak dapat memuat detail dataset untuk Tahun ${yr} Semester ${sem}.`,
+                        type: 'error'
+                    });
+                    this.renderModal();
                 }
+            });
+        }
+
+        const btnDelete = modalEl.querySelector('#btn-delete-dataset');
+        if (btnDelete) {
+            btnDelete.addEventListener('click', async () => {
+                const yr = Number(this.selectedYear);
+                const sem = Number(this.selectedSemester);
+                const key = `${yr}-${sem}`;
+                const ds = this.datasetManager.getDataset(yr, sem);
+                if (!ds) return;
+
+                // Dynamic check against currently active dataset
+                const activeEntry = Object.values(this.datasetManager.registry).find(d => Boolean(d.isActive === 1 || d.isActive === true || d.is_active === 1 || d.status === 'AKTIF'));
+                const isDatasetActive = activeEntry 
+                    ? (Number(activeEntry.year) === yr && Number(activeEntry.semester) === sem)
+                    : Boolean(ds.isActive === 1 || ds.is_active === 1);
+
+                if (isDatasetActive) {
+                    await DialogModal.alert({
+                        title: 'Dataset Sedang Aktif',
+                        message: `Dataset Tahun ${yr} Semester ${sem} sedang aktif digunakan pada infografis live.\n\nUntuk alasan integritas data, aktifkan dataset periode lain terlebih dahulu sebelum menghapus dataset ini.`,
+                        type: 'warning'
+                    });
+                    return;
+                }
+
+                const confirmed = await DialogModal.promptPin({
+                    title: 'Konfirmasi Hapus Dataset',
+                    periodInfo: `Tahun ${yr} Semester ${sem}`,
+                    filename: ds.filename || ds.source_filename || 'Tersimpan di database',
+                    requiredPin: 'disduk123'
+                });
+
+                if (!confirmed) return;
+
+                btnDelete.disabled = true;
+                btnDelete.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Menghapus...';
+
+                const targetId = ds.id || `social-${yr}-${sem}`;
+                const ok = await DbService.deleteDataset(targetId);
+                if (ok) {
+                    delete this.datasetManager.registry[key];
+                    this.datasetManager.saveRegistry();
+                    await this.datasetManager.syncWithDatabase();
+                    
+                    await DialogModal.alert({
+                        title: 'Penghapusan Berhasil',
+                        message: `Dataset Tahun ${yr} Semester ${sem} telah berhasil dihapus secara permanen dari database SQLite.`,
+                        type: 'success',
+                        confirmText: 'Selesai'
+                    });
+                    
+                    // Switch to remaining available years
+                    const remainingYears = this.datasetManager.getAvailableYears();
+                    if (remainingYears.length > 0) {
+                        this.selectedYear = remainingYears[0];
+                    }
+                    this.renderModal();
+                } else {
+                    await DialogModal.alert({
+                        title: 'Gagal Menghapus',
+                        message: 'Gagal menghapus dataset dari SQLite. Pastikan dataset tidak sedang berstatus aktif.',
+                        type: 'error'
+                    });
+                    this.renderModal();
+                }
+            });
+        }
+
+        const btnOpenDataEntry = modalEl.querySelector('#btn-open-data-entry-from-dm');
+        if (btnOpenDataEntry) {
+            btnOpenDataEntry.addEventListener('click', () => {
+                this.toggleModal(false);
+                this.onOpenDataEntry();
             });
         }
 
         const btnAddPlaceholder = modalEl.querySelector('#btn-add-new-dataset-placeholder');
         if (btnAddPlaceholder) {
             btnAddPlaceholder.addEventListener('click', () => {
-                this.showInfoModal = true;
-                this.renderModal();
+                this.toggleModal(false);
+                this.onOpenDataEntry();
             });
         }
 

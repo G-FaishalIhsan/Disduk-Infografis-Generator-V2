@@ -1,9 +1,11 @@
 /**
- * Dataset Manager Module (Phase 4 Update — Scalable Dynamic Dataset Engine)
- * Manages dataset metadata, auto-summary generation from Excel files,
- * dynamic year scanning (storage/datasets/), and tracks lastUsedAt timestamps.
- * Provides complete 39-Kecamatan demographic calculations for all historical & active datasets.
+ * Dataset Manager Module (Phase A6 — SQLite Integration & Graceful Fallback)
+ * Manages dataset metadata, synchronization with backend SQLite database (/api/data/*),
+ * dynamic year scanning, and tracks lastUsedAt timestamps.
+ * If backend is unavailable or offline, gracefully falls back to localStorage.
  */
+
+import { DbService } from '../services/db-service.js';
 
 const KECAMATAN_RATIOS = [
     { kdkec: "320601", nama: "CIPATUJAH", baseTotal: 74022 },
@@ -47,7 +49,7 @@ const KECAMATAN_RATIOS = [
     { kdkec: "320639", nama: "SUKARESIK", baseTotal: 42731 }
 ];
 
-function generateDatasetPayload(year, semester, totalP, filename, uploadedAt, lastUsedAt, statusBadge) {
+function generateFallbackDatasetPayload(year, semester, totalP, filename, uploadedAt, lastUsedAt, statusBadge) {
     const laki = Math.round(totalP * 0.5092);
     const perempuan = totalP - laki;
     const kk = Math.round(totalP / 3.4);
@@ -87,7 +89,7 @@ function generateDatasetPayload(year, semester, totalP, filename, uploadedAt, la
         lastUsedAt,
         fileSize: 55000,
         statusBadge,
-        statusBadgeClass: 'v2-badge-active',
+        statusBadgeClass: statusBadge === 'AKTIF' ? 'v2-badge-active' : 'v2-badge-available',
         summary: {
             totalKecamatan: 39,
             totalDesa: 351,
@@ -105,45 +107,93 @@ export class DatasetManager {
     constructor() {
         this.storageKey = 'disduk_v2_scalable_datasets';
         this.registry = {};
+        this.isDbConnected = false;
         this.init();
     }
 
     init() {
         this.loadRegistry();
         this.seedFolderStructure();
+        this.syncWithDatabase().catch(err => {
+            console.warn('[DatasetManager] Background DB sync note:', err.message);
+        });
     }
 
     /**
-     * Seeds initial datasets with full metadata and dynamic summary estimates matching storage/datasets/
+     * Seeds initial fallback datasets
      */
     seedFolderStructure() {
         const defaults = {
-            '2025-2': generateDatasetPayload(2025, 2, 2026081, 'JUMDUK SEM 2 TAHUN 2025.xlsx', new Date(2026, 6, 26).toISOString(), new Date(2026, 6, 27).toISOString(), 'AKTIF'),
-            '2025-1': generateDatasetPayload(2025, 1, 1985400, 'JUMDUK SEM 1 TAHUN 2025.xlsx', new Date(2026, 5, 30).toISOString(), null, 'TERSEDIA'),
-            '2024-2': generateDatasetPayload(2024, 2, 1945100, 'JUMDUK SEM 2 2024.xlsx', new Date(2025, 11, 31).toISOString(), null, 'TERSEDIA'),
-            '2024-1': generateDatasetPayload(2024, 1, 1912800, 'JUMDUK SEM 1 2024.xlsx', new Date(2025, 5, 30).toISOString(), new Date(2026, 6, 28).toISOString(), 'TERSEDIA'),
-            '2023-2': generateDatasetPayload(2023, 2, 1880500, 'JUMDUK SEM 2 2023.xlsx', new Date(2024, 11, 31).toISOString(), null, 'TERSEDIA'),
-            '2023-1': generateDatasetPayload(2023, 1, 1850200, 'JUMDUK SEM 1 2023.xlsx', new Date(2024, 5, 30).toISOString(), null, 'TERSEDIA')
+            '2025-2': generateFallbackDatasetPayload(2025, 2, 1947448, 'JUMDUK SEM 2 TAHUN 2025.xlsx', new Date(2026, 6, 26).toISOString(), new Date(2026, 6, 27).toISOString(), 'AKTIF'),
+            '2025-1': generateFallbackDatasetPayload(2025, 1, 1947448, 'JUMDUK SEM 1 TAHUN 2025.xlsx', new Date(2026, 5, 30).toISOString(), null, 'TERSEDIA'),
+            '2024-2': generateFallbackDatasetPayload(2024, 2, 1947448, 'JUMDUK SEM 2 2024.xlsx', new Date(2025, 11, 31).toISOString(), null, 'TERSEDIA'),
+            '2024-1': generateFallbackDatasetPayload(2024, 1, 1947448, 'JUMDUK SEM 1 2024.xlsx', new Date(2025, 5, 30).toISOString(), null, 'TERSEDIA'),
+            '2023-2': generateFallbackDatasetPayload(2023, 2, 1947448, 'JUMDUK SEM 2 2023.xlsx', new Date(2024, 11, 31).toISOString(), null, 'TERSEDIA'),
+            '2023-1': generateFallbackDatasetPayload(2023, 1, 1947448, 'JUMDUK SEM 1 2023.xlsx', new Date(2024, 5, 30).toISOString(), null, 'TERSEDIA')
         };
 
-        // Always ensure defaults have complete summary & kecamatanData
         Object.keys(defaults).forEach(key => {
             if (!this.registry[key] || !this.registry[key].summary || !this.registry[key].summary.lakiLaki) {
                 this.registry[key] = defaults[key];
-            } else {
-                this.registry[key].kecamatanData = defaults[key].kecamatanData;
-                this.registry[key].summary = defaults[key].summary;
             }
         });
 
         this.saveRegistry();
     }
 
+    /**
+     * Asynchronously syncs registry with SQLite database
+     */
+    async syncWithDatabase() {
+        try {
+            const datasetsList = await DbService.getDatasets('social');
+            if (datasetsList && Array.isArray(datasetsList) && datasetsList.length > 0) {
+                this.isDbConnected = true;
+                const updatedRegistry = {};
+                for (const d of datasetsList) {
+                    const key = `${d.year}-${d.semester}`;
+                    const fullData = await DbService.getDatasetById(d.id);
+                    const isActive = Boolean(d.isActive || d.is_active || d.status === 'AKTIF');
+                    if (fullData) {
+                        updatedRegistry[key] = {
+                            ...fullData,
+                            year: Number(d.year),
+                            semester: Number(d.semester),
+                            isActive: isActive ? 1 : 0,
+                            is_active: isActive ? 1 : 0,
+                            status: isActive ? 'AKTIF' : 'TERSEDIA',
+                            statusBadge: isActive ? 'AKTIF' : 'TERSEDIA',
+                            statusBadgeClass: isActive ? 'v2-badge-active' : 'v2-badge-available'
+                        };
+                    } else {
+                        updatedRegistry[key] = {
+                            year: Number(d.year),
+                            semester: Number(d.semester),
+                            filename: d.filename || d.source_filename,
+                            summary: { totalPenduduk: d.totalPopulation || 0 },
+                            status: isActive ? 'AKTIF' : 'TERSEDIA',
+                            statusBadge: isActive ? 'AKTIF' : 'TERSEDIA',
+                            statusBadgeClass: isActive ? 'v2-badge-active' : 'v2-badge-available',
+                            isActive: isActive ? 1 : 0,
+                            is_active: isActive ? 1 : 0
+                        };
+                    }
+                }
+                this.registry = updatedRegistry;
+                this.saveRegistry();
+            }
+        } catch (err) {
+            console.warn('[DatasetManager] syncWithDatabase fallback:', err.message);
+        }
+    }
+
     loadRegistry() {
         try {
-            const raw = localStorage.getItem(this.storageKey);
-            if (raw) {
-                this.registry = JSON.parse(raw);
+            if (typeof window !== 'undefined' && window.localStorage) {
+                const raw = window.localStorage.getItem(this.storageKey);
+                if (raw) {
+                    this.registry = JSON.parse(raw);
+                }
             }
         } catch (e) {
             console.warn('Gagal membaca dataset registry:', e);
@@ -153,21 +203,27 @@ export class DatasetManager {
 
     saveRegistry() {
         try {
-            localStorage.setItem(this.storageKey, JSON.stringify(this.registry));
+            if (typeof window !== 'undefined' && window.localStorage) {
+                window.localStorage.setItem(this.storageKey, JSON.stringify(this.registry));
+            }
         } catch (e) {
             console.warn('Gagal menyimpan dataset registry:', e);
         }
     }
 
     /**
-     * Dynamically returns all unique dataset years present in storage/registry
-     * @returns {Array<number>} Sorted years descending e.g. [2026, 2025, 2024, 2023]
+     * Dynamically returns all unique dataset years present in storage/registry/SQLite
+     * @returns {Array<number>} Sorted years descending e.g. [2027, 2026, 2025, 2024, 2023]
      */
     getAvailableYears() {
-        const yearsSet = new Set([2025, 2024, 2023]);
+        const yearsSet = new Set();
         Object.values(this.registry).forEach(item => {
-            if (item.year) yearsSet.add(Number(item.year));
+            const yr = Number(item.year || item.metadata?.year);
+            if (yr && !isNaN(yr)) yearsSet.add(yr);
         });
+        if (yearsSet.size === 0) {
+            return [2027, 2026, 2025, 2024, 2023];
+        }
         return Array.from(yearsSet).sort((a, b) => b - a);
     }
 
@@ -183,16 +239,49 @@ export class DatasetManager {
     }
 
     /**
-     * Marks a dataset as used and updates its lastUsedAt timestamp.
+     * Asynchronously retrieves dataset from memory registry or SQLite DB
+     */
+    async getDatasetAsync(year, semester) {
+        const key = `${year}-${semester}`;
+        if (this.registry[key] && this.registry[key].summary) {
+            return this.registry[key];
+        }
+        const slug = `social-${year}-${semester}`;
+        const dbData = await DbService.getDatasetById(slug);
+        if (dbData) {
+            this.registry[key] = dbData;
+            this.saveRegistry();
+            return dbData;
+        }
+        return this.getDataset(year, semester);
+    }
+
+    /**
+     * Marks a dataset as active/used, updating all other datasets to 'TERSEDIA'.
      * @param {number} year 
      * @param {number} semester 
      */
     markAsUsed(year, semester) {
-        const key = `${year}-${semester}`;
-        if (this.registry[key]) {
-            this.registry[key].lastUsedAt = new Date().toISOString();
-            this.saveRegistry();
-        }
+        const targetKey = `${year}-${semester}`;
+        const now = new Date().toISOString();
+
+        Object.keys(this.registry).forEach(key => {
+            const isTarget = (key === targetKey);
+            if (this.registry[key]) {
+                this.registry[key].isActive = isTarget;
+                this.registry[key].is_active = isTarget ? 1 : 0;
+                this.registry[key].status = isTarget ? 'AKTIF' : 'TERSEDIA';
+                this.registry[key].statusBadge = isTarget ? 'AKTIF' : 'TERSEDIA';
+                this.registry[key].statusBadgeClass = isTarget ? 'v2-badge-active' : 'v2-badge-available';
+                if (isTarget) {
+                    this.registry[key].lastUsedAt = now;
+                }
+            }
+        });
+
+        this.saveRegistry();
+        // Asynchronously sync with SQLite DB
+        DbService.setActiveDataset(targetKey).catch(() => {});
     }
 
     /**

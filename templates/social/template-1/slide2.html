@@ -268,17 +268,17 @@
             </div>
         </section>
 
-        <!-- 4. ROW 3: TOP 3 DESA (CARD RANKING) -->
+        <!-- 4. ROW 3: TOP 3 KECAMATAN (CARD RANKING) -->
         <section class="stat-card-secondary" style="padding: 24px 26px; min-height: 225px; margin-bottom: 8px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
                 <div style="display: flex; align-items: center; gap: 8px;">
                     <i class="fa-solid fa-ranking-star text-emerald-700 text-xl"></i>
                     <h3 class="text-heading-2" style="font-size: 20px; color: var(--color-secondary-900); font-weight: 800;">
-                        Top 3 Desa (Penduduk Terbanyak)
+                        Top 3 Kecamatan (Penduduk Terbanyak)
                     </h3>
                 </div>
                 <span style="font-size: 13px; font-weight: 800; color: var(--color-primary-700); background: var(--color-primary-50); padding: 4px 10px; border-radius: 8px; border: 1.5px solid var(--color-primary-500);">
-                    Sebaran Desa <span data-bind="valTahun">2025</span>
+                    Sebaran Kecamatan <span data-bind="valTahun">2025</span>
                 </span>
             </div>
 
@@ -293,13 +293,13 @@
                         <span style="font-size: 11px; font-weight: 900; color: var(--color-primary-800); background: rgba(255,255,255,0.9); padding: 3px 10px; border-radius: 6px;">JUARA 1</span>
                     </div>
                     <div style="font-size: 20px; font-weight: 900; color: var(--color-primary-900);" id="valRank1Name">
-                        Desa Singaparna
+                        Kecamatan Singaparna
                     </div>
                     <div style="font-size: 28px; font-weight: 900; color: var(--color-primary-700); margin-top: 2px;" id="valRank1Count">
-                        14.850
+                        73.799
                     </div>
                     <div style="font-size: 13px; color: var(--color-primary-900); font-weight: 700; margin-top: 6px; padding-top: 6px; border-top: 1.5px dashed var(--color-primary-500);" id="valRank1Details">
-                        L: 7.510 • P: 7.340 • KK: 5.120
+                        L: 37.511 • P: 36.288 • KK: 27.618
                     </div>
                 </div>
 
@@ -310,13 +310,13 @@
                         <span style="font-size: 11px; font-weight: 900; color: var(--color-accent-sky); background: var(--color-accent-sky-light); padding: 3px 10px; border-radius: 6px;">RANK 2</span>
                     </div>
                     <div style="font-size: 20px; font-weight: 900; color: var(--color-secondary-900);" id="valRank2Name">
-                        Desa Cipakat
+                        Kecamatan Karangnunggal
                     </div>
                     <div style="font-size: 28px; font-weight: 900; color: var(--color-accent-sky); margin-top: 2px;" id="valRank2Count">
-                        12.340
+                        61.246
                     </div>
                     <div style="font-size: 13px; color: var(--color-neutral-700); font-weight: 700; margin-top: 6px; padding-top: 6px; border-top: 1.5px dashed var(--color-neutral-300);" id="valRank2Details">
-                        L: 6.240 • P: 6.100 • KK: 4.310
+                        L: 30.803 • P: 30.443 • KK: 20.859
                     </div>
                 </div>
 
@@ -327,13 +327,13 @@
                         <span style="font-size: 11px; font-weight: 900; color: var(--color-accent-amber); background: var(--color-accent-amber-light); padding: 3px 10px; border-radius: 6px;">RANK 3</span>
                     </div>
                     <div style="font-size: 20px; font-weight: 900; color: var(--color-secondary-900);" id="valRank3Name">
-                        Desa Cintaraja
+                        Kecamatan Cipatujah
                     </div>
                     <div style="font-size: 28px; font-weight: 900; color: var(--color-accent-amber); margin-top: 2px;" id="valRank3Count">
-                        9.780
+                        58.412
                     </div>
                     <div style="font-size: 13px; color: var(--color-neutral-700); font-weight: 700; margin-top: 6px; padding-top: 6px; border-top: 1.5px dashed var(--color-neutral-300);" id="valRank3Details">
-                        L: 4.950 • P: 4.830 • KK: 4.830
+                        L: 29.540 • P: 28.872 • KK: 19.450
                     </div>
                 </div>
 
@@ -375,49 +375,108 @@
 
     <!-- Chart.js Initialization Script -->
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            const ctxGender = document.getElementById('genderChartCanvas').getContext('2d');
-            new Chart(ctxGender, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Laki-Laki', 'Perempuan'],
-                    datasets: [{
-                        data: [1024500, 1001581],
-                        backgroundColor: ['#047857', '#e11d48'],
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: '72%',
-                    animation: false,
-                    plugins: { legend: { display: false } }
-                }
-            });
+        function parseNum(val, fallback) {
+            if (!val) return fallback;
+            const n = Number(String(val).replace(/\./g, '').replace(/,/g, '').trim());
+            return isNaN(n) ? fallback : n;
+        }
 
-            const ctxAge = document.getElementById('ageChartCanvas').getContext('2d');
-            new Chart(ctxAge, {
-                type: 'doughnut',
-                data: {
-                    labels: ['Wajib KTP (≥17th)', 'Anak (<17th)'],
-                    datasets: [{
-                        data: [1320400, 705681],
-                        backgroundColor: ['#047857', '#0284c7'],
-                        borderWidth: 0,
-                        hoverOffset: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: true,
-                    cutout: '72%',
-                    animation: false,
-                    plugins: { legend: { display: false } }
-                }
-            });
-        });
+        function initCharts() {
+            const genderCanvas = document.getElementById('genderChartCanvas');
+            const ageCanvas = document.getElementById('ageChartCanvas');
+            if (!genderCanvas || !ageCanvas || typeof Chart === 'undefined') return;
+
+            const laki = Number(genderCanvas.getAttribute('data-laki')) || 
+                         parseNum(document.querySelector('#valLaki')?.textContent, 1024500);
+            const perempuan = Number(genderCanvas.getAttribute('data-perempuan')) || 
+                              parseNum(document.querySelector('#valPerempuan')?.textContent, 1001581);
+
+            const wajibKtp = Number(ageCanvas.getAttribute('data-wajib-ktp')) || 
+                             parseNum(document.querySelector('#valKTP')?.textContent, 1320400);
+            const anak = Number(ageCanvas.getAttribute('data-anak')) || 
+                         parseNum(document.querySelector('#valAnak')?.textContent, 705681);
+
+            if (window.genderChart && window.genderChart.data && window.genderChart.data.datasets[0]) {
+                window.genderChart.data.datasets[0].data = [laki, perempuan];
+                window.genderChart.update('none');
+            } else if (!window.genderChart) {
+                const ctxGender = genderCanvas.getContext('2d');
+                window.genderChart = new Chart(ctxGender, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Laki-Laki', 'Perempuan'],
+                        datasets: [{
+                            data: [laki, perempuan],
+                            backgroundColor: ['#047857', '#e11d48'],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        cutout: '72%',
+                        animation: false,
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+
+            if (window.ageChart && window.ageChart.data && window.ageChart.data.datasets[0]) {
+                window.ageChart.data.datasets[0].data = [wajibKtp, anak];
+                window.ageChart.update('none');
+            } else if (!window.ageChart) {
+                const ctxAge = ageCanvas.getContext('2d');
+                window.ageChart = new Chart(ctxAge, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['Wajib KTP (≥17th)', 'Anak (<17th)'],
+                        datasets: [{
+                            data: [wajibKtp, anak],
+                            backgroundColor: ['#047857', '#0284c7'],
+                            borderWidth: 0,
+                            hoverOffset: 4
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        cutout: '72%',
+                        animation: false,
+                        plugins: { legend: { display: false } }
+                    }
+                });
+            }
+        }
+
+        window.updateTemplateData = function(dataObj) {
+            if (!dataObj) return;
+            const total = dataObj.totalPenduduk || 2026081;
+            const laki = dataObj.lakiLaki || 1024500;
+            const perempuan = dataObj.perempuan || 1001581;
+            const wajibKtp = dataObj.wajibKtp || 1320400;
+            const anak = Math.max(0, total - wajibKtp);
+
+            const genderCanvas = document.getElementById('genderChartCanvas');
+            if (genderCanvas) {
+                genderCanvas.setAttribute('data-laki', String(laki));
+                genderCanvas.setAttribute('data-perempuan', String(perempuan));
+            }
+
+            const ageCanvas = document.getElementById('ageChartCanvas');
+            if (ageCanvas) {
+                ageCanvas.setAttribute('data-wajib-ktp', String(wajibKtp));
+                ageCanvas.setAttribute('data-anak', String(anak));
+            }
+
+            initCharts();
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', initCharts);
+        } else {
+            initCharts();
+        }
     </script>
 
 </body>

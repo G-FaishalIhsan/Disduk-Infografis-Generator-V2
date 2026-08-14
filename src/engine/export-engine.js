@@ -5,6 +5,8 @@
  * Uses real-time SSE progress streaming connected directly to the top loading toast.
  */
 
+import { DialogModal } from '../ui/dialog-modal.js';
+
 export class ExportEngine {
     constructor() {
         const origin = (typeof window !== 'undefined' && window.location && window.location.origin && window.location.origin.startsWith('http')) ? window.location.origin : 'http://localhost:3000';
@@ -18,7 +20,7 @@ export class ExportEngine {
 
         const toast = document.createElement('div');
         toast.id = 'export-loading-toast';
-        toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 -translate-y-4 transition-all duration-300 ease-out';
+        toast.className = 'fixed top-5 left-1/2 -translate-x-1/2 z-[100001] pointer-events-none opacity-0 -translate-y-4 transition-all duration-300 ease-out';
         toast.innerHTML = `
             <div id="export-toast-card" class="flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl border bg-slate-900/95 text-white border-slate-700/80 backdrop-blur-md min-w-[360px] max-w-md">
                 
@@ -77,9 +79,64 @@ export class ExportEngine {
         if (descEl && descText) descEl.textContent = descText;
     }
 
+    showWarningToast(title = 'Ekspor Sedang Berjalan', desc = 'Mohon tunggu hingga proses ekspor selesai.') {
+        if (!this.toast) this.initLoadingToast();
+        this.updateToastTheme();
+
+        const titleEl = document.querySelector('#export-toast-title');
+        const descEl = document.querySelector('#export-toast-desc');
+        const iconEl = document.querySelector('#export-toast-icon');
+        const spinnerEl = document.querySelector('#export-toast-spinner');
+        const pulseEl = document.querySelector('#export-toast-pulse');
+        const dotEl = document.querySelector('#export-toast-dot');
+
+        if (titleEl) titleEl.textContent = title;
+        if (descEl) descEl.textContent = desc;
+
+        if (spinnerEl) spinnerEl.classList.add('hidden');
+        if (iconEl) iconEl.className = 'fa-solid fa-triangle-exclamation text-base text-amber-400';
+        if (pulseEl) pulseEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75';
+        if (dotEl) dotEl.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500';
+
+        this.toast.classList.remove('opacity-0', '-translate-y-4', 'pointer-events-none');
+        this.toast.classList.add('opacity-100', 'translate-y-0');
+
+        if (this._warningTimeout) clearTimeout(this._warningTimeout);
+        this._warningTimeout = setTimeout(() => this.hideLoadingToast(), 3000);
+    }
+
+    showSuccessToast(title = 'Ekspor Berhasil', desc = 'File infografis berhasil diunduh.') {
+        if (!this.toast) this.initLoadingToast();
+        this.updateToastTheme();
+
+        const titleEl = document.querySelector('#export-toast-title');
+        const descEl = document.querySelector('#export-toast-desc');
+        const iconEl = document.querySelector('#export-toast-icon');
+        const spinnerEl = document.querySelector('#export-toast-spinner');
+        const pulseEl = document.querySelector('#export-toast-pulse');
+        const dotEl = document.querySelector('#export-toast-dot');
+
+        if (titleEl) titleEl.textContent = title;
+        if (descEl) descEl.textContent = desc;
+
+        if (spinnerEl) spinnerEl.classList.add('hidden');
+        if (iconEl) iconEl.className = 'fa-solid fa-circle-check text-base text-emerald-400';
+        if (pulseEl) pulseEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+        if (dotEl) dotEl.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500';
+
+        this.toast.classList.remove('opacity-0', '-translate-y-4', 'pointer-events-none');
+        this.toast.classList.add('opacity-100', 'translate-y-0');
+
+        if (this._successTimeout) clearTimeout(this._successTimeout);
+        this._successTimeout = setTimeout(() => this.hideLoadingToast(), 2500);
+    }
+
     showLoadingToast(format) {
         if (!this.toast) this.initLoadingToast();
         this.updateToastTheme();
+
+        if (this._warningTimeout) clearTimeout(this._warningTimeout);
+        if (this._successTimeout) clearTimeout(this._successTimeout);
 
         const titleEl = document.querySelector('#export-toast-title');
         const descEl = document.querySelector('#export-toast-desc');
@@ -92,6 +149,8 @@ export class ExportEngine {
         if (titleEl) titleEl.textContent = `Mengekspor File ${fmt}...`;
         if (descEl) descEl.textContent = `Merender dokumen ${fmt} HiDPI...`;
 
+        if (spinnerEl) spinnerEl.classList.remove('hidden');
+
         if (iconEl && spinnerEl && pulseEl && dotEl) {
             if (format === 'pdf') {
                 iconEl.className = 'fa-solid fa-file-pdf text-sm text-rose-400';
@@ -103,7 +162,7 @@ export class ExportEngine {
                 spinnerEl.className = 'absolute inset-0 rounded-full border-2 border-amber-500/20 border-t-amber-400 animate-spin';
                 pulseEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75';
                 dotEl.className = 'relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-500';
-            } else if (format === 'social') {
+            } else if (format === 'social' || format === 'zip') {
                 iconEl.className = 'fa-solid fa-share-nodes text-sm text-indigo-400';
                 spinnerEl.className = 'absolute inset-0 rounded-full border-2 border-indigo-500/20 border-t-indigo-400 animate-spin';
                 pulseEl.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75';
@@ -195,7 +254,11 @@ export class ExportEngine {
                                                 })
                                                 .catch(err => {
                                                     this.hideLoadingToast();
-                                                    alert(`Gagal mengunduh file ZIP: ${err.message}`);
+                                                    DialogModal.alert({
+                                                        title: 'Gagal Mengunduh ZIP',
+                                                        message: `Gagal mengunduh file ZIP: ${err.message}`,
+                                                        type: 'error'
+                                                    });
                                                     reject(err);
                                                 });
                                         } else if (json.status === 'error') {
@@ -213,7 +276,11 @@ export class ExportEngine {
                         }
                     }).catch(err => {
                         this.hideLoadingToast();
-                        alert(`Export Social Media Gagal: ${err.message}`);
+                        DialogModal.alert({
+                            title: 'Ekspor Gagal',
+                            message: `Export Social Media Gagal: ${err.message}`,
+                            type: 'error'
+                        });
                         reject(err);
                     });
                 };
@@ -222,7 +289,11 @@ export class ExportEngine {
             }).catch(err => {
                 console.error('[ExportEngine Client] Social Export Failed:', err);
                 this.hideLoadingToast();
-                alert(`Export Social Media Gagal: ${err.message}`);
+                DialogModal.alert({
+                    title: 'Ekspor Gagal',
+                    message: `Export Social Media Gagal: ${err.message}`,
+                    type: 'error'
+                });
                 reject(err);
             });
         });

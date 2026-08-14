@@ -13,6 +13,7 @@ import { PngExporter } from '../exporters/png-exporter.js';
 import { JpgExporter } from '../exporters/jpg-exporter.js';
 import { PdfExporter } from '../exporters/pdf-exporter.js';
 import { ZipExporter } from '../exporters/zip-exporter.js';
+import { DialogModal } from '../ui/dialog-modal.js';
 
 export class SocialExportEngine {
     constructor(options = {}) {
@@ -56,7 +57,11 @@ export class SocialExportEngine {
         this._currentExportFormat = format;
         // 1. Queue Lock & Pre-checks
         if (!this.exportState.acquireLock()) {
-            alert('Proses ekspor sedang berjalan. Harap tunggu hingga selesai.');
+            await DialogModal.alert({
+                title: 'Ekspor Sedang Berjalan',
+                message: 'Proses ekspor sedang berjalan di sistem. Harap tunggu hingga selesai.',
+                type: 'warning'
+            });
             return;
         }
 
@@ -68,7 +73,11 @@ export class SocialExportEngine {
             this.exportState.setState(EXPORT_STATES.LOADING_DATASET, 'Loading Dataset...', 15);
             const datasetPayload = DatasetService.getActiveDataset();
             if (!datasetPayload) {
-                alert('Dataset belum dipilih.');
+                await DialogModal.alert({
+                    title: 'Dataset Belum Dipilih',
+                    message: 'Silakan pilih atau aktifkan dataset terlebih dahulu sebelum mengekspor infografis.',
+                    type: 'warning'
+                });
                 this.exportState.setState(EXPORT_STATES.ERROR, 'Dataset belum dipilih.', 0);
                 return;
             }
@@ -81,7 +90,11 @@ export class SocialExportEngine {
 
             const manifest = this.templateRegistry.getTemplateManifest(templateId);
             if (!manifest) {
-                alert('Template belum dipilih.');
+                await DialogModal.alert({
+                    title: 'Template Belum Dipilih',
+                    message: 'Template infografis media sosial belum siap atau belum dipilih.',
+                    type: 'warning'
+                });
                 this.exportState.setState(EXPORT_STATES.ERROR, 'Template belum dipilih.', 0);
                 return;
             }
@@ -125,7 +138,11 @@ export class SocialExportEngine {
 
         } catch (err) {
             console.error('[SocialExportEngine] Export Pipeline Error:', err);
-            alert(`Export gagal. Silakan coba kembali.\nDetail: ${err.message}`);
+            await DialogModal.alert({
+                title: 'Ekspor Gagal',
+                message: `Export gagal diproses. Silakan coba kembali.\n\nDetail kendala: ${err.message}`,
+                type: 'error'
+            });
             this.exportState.setState(EXPORT_STATES.ERROR, 'Export gagal. Silakan coba kembali.', 0);
         }
     }

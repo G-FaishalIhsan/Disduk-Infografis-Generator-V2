@@ -132,33 +132,61 @@ export class PreviewEngine {
         const slide2TargetSrc = `${folder}/slide2.html`;
 
         const updateIframes = () => {
+            const bindSlide1 = (doc) => {
+                if (!doc) return;
+                BindingEngine.bind(doc, dataObj);
+                if (doc.defaultView && typeof doc.defaultView.updateTemplateData === 'function') {
+                    doc.defaultView.updateTemplateData(dataObj);
+                }
+                setTimeout(() => {
+                    BindingEngine.bind(doc, dataObj);
+                    if (doc.defaultView && typeof doc.defaultView.updateTemplateData === 'function') {
+                        doc.defaultView.updateTemplateData(dataObj);
+                    }
+                }, 150);
+            };
+
+            const bindSlide2 = (doc) => {
+                if (!doc) return;
+                BindingEngine.bind(doc, slide2Data);
+                if (doc.defaultView && typeof doc.defaultView.updateTemplateData === 'function') {
+                    doc.defaultView.updateTemplateData(slide2Data);
+                }
+                setTimeout(() => {
+                    BindingEngine.bind(doc, slide2Data);
+                    if (doc.defaultView && typeof doc.defaultView.updateTemplateData === 'function') {
+                        doc.defaultView.updateTemplateData(slide2Data);
+                    }
+                }, 150);
+            };
+
             if (this.slide1Iframe) {
-                const doc1 = this.slide1Iframe.contentDocument || this.slide1Iframe.contentWindow.document;
-                if (doc1 && doc1.location && doc1.location.pathname.endsWith(slide1TargetSrc)) {
-                    BindingEngine.bind(doc1, dataObj);
+                const doc1 = this.slide1Iframe.contentDocument || this.slide1Iframe.contentWindow?.document;
+                if (doc1 && doc1.location && doc1.location.pathname.endsWith(slide1TargetSrc.replace(/^\.\//, ''))) {
+                    bindSlide1(doc1);
                 } else {
                     this.slide1Iframe.src = slide1TargetSrc;
                     this.slide1Iframe.onload = () => {
-                        const d1 = this.slide1Iframe.contentDocument || this.slide1Iframe.contentWindow.document;
-                        if (d1) BindingEngine.bind(d1, dataObj);
+                        const d1 = this.slide1Iframe.contentDocument || this.slide1Iframe.contentWindow?.document;
+                        bindSlide1(d1);
                         checkComplete();
                     };
                 }
             }
 
-            if (this.slide2Iframe) {
-                const doc2 = this.slide2Iframe.contentDocument || this.slide2Iframe.contentWindow.document;
-                const slide2Data = (this.activeTemplateId === 'template-2-v2' || this.activeTemplateId === 'template-2' || this.activeTemplateId === 'template-3-v2' || this.activeTemplateId === 'template-3') 
-                    ? dataObjKabupaten 
-                    : dataObj;
+            const slide2Data = (this.activeTemplateId === 'template-2-v2' || this.activeTemplateId === 'template-2' || this.activeTemplateId === 'template-3-v2' || this.activeTemplateId === 'template-3') 
+                ? dataObjKabupaten 
+                : dataObj;
 
-                if (doc2 && doc2.location && doc2.location.pathname.endsWith(slide2TargetSrc)) {
-                    BindingEngine.bind(doc2, slide2Data);
+            if (this.slide2Iframe) {
+                const doc2 = this.slide2Iframe.contentDocument || this.slide2Iframe.contentWindow?.document;
+                if (doc2 && doc2.location && doc2.location.pathname.endsWith(slide2TargetSrc.replace(/^\.\//, ''))) {
+                    bindSlide2(doc2);
                 } else {
                     this.slide2Iframe.src = slide2TargetSrc;
                     this.slide2Iframe.onload = () => {
-                        const d2 = this.slide2Iframe.contentDocument || this.slide2Iframe.contentWindow.document;
-                        if (d2) BindingEngine.bind(d2, slide2Data);
+                        const d2 = this.slide2Iframe.contentDocument || this.slide2Iframe.contentWindow?.document;
+                        bindSlide2(d2);
                         checkComplete();
                     };
                 }

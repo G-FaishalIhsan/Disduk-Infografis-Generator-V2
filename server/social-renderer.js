@@ -88,17 +88,22 @@ export class SocialChromiumRenderer {
                 } catch (e) {}
             }
 
-            // 4. Wait for all Images to decode
+            // 4. Wait for all Images to decode (with 2s fallback timeout)
             const images = Array.from(document.querySelectorAll('img'));
-            await Promise.all(images.map(img => {
-                if (img.complete && img.naturalHeight !== 0) {
-                    return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
-                }
-                return new Promise(resolve => {
-                    img.onload = resolve;
-                    img.onerror = resolve;
-                });
-            }));
+            try {
+                await Promise.race([
+                    Promise.all(images.map(img => {
+                        if (img.complete && img.naturalHeight !== 0) {
+                            return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+                        }
+                        return new Promise(resolve => {
+                            img.onload = resolve;
+                            img.onerror = resolve;
+                        });
+                    })),
+                    new Promise(r => setTimeout(r, 2000))
+                ]);
+            } catch (e) {}
 
             // 5. Force Chart.js settlement if present
             if (window.Chart && window.Chart.instances) {
@@ -218,12 +223,17 @@ export class SocialChromiumRenderer {
                     }
 
                     const images = Array.from(document.querySelectorAll('img'));
-                    await Promise.all(images.map(img => {
-                        if (img.complete && img.naturalHeight !== 0) {
-                            return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
-                        }
-                        return new Promise(r => { img.onload = r; img.onerror = r; });
-                    }));
+                    try {
+                        await Promise.race([
+                            Promise.all(images.map(img => {
+                                if (img.complete && img.naturalHeight !== 0) {
+                                    return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+                                }
+                                return new Promise(r => { img.onload = r; img.onerror = r; });
+                            })),
+                            new Promise(r => setTimeout(r, 2000))
+                        ]);
+                    } catch (e) {}
                 }, options.theme);
 
                 await new Promise(r => setTimeout(r, 200));

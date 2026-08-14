@@ -30,12 +30,21 @@ export class DataBinder {
 
         // 2. Execute template-specific JS binding hook if exposed
         const iframeWin = doc.defaultView || window;
-        if (iframeWin && typeof iframeWin.updateTemplateData === 'function') {
-            iframeWin.updateTemplateData(populationData);
-        }
+        const executeHook = () => {
+            if (iframeWin && typeof iframeWin.updateTemplateData === 'function') {
+                iframeWin.updateTemplateData(populationData);
+            }
+            this.updateCharts(iframeWin, populationData);
+        };
 
-        // 3. Auto-update Chart.js instances if present in template iframe
-        this.updateCharts(iframeWin, populationData);
+        executeHook();
+
+        // If iframe scripts are still initializing, ensure hook re-executes upon DOMContentLoaded and tick
+        if (doc.readyState === 'loading') {
+            doc.addEventListener('DOMContentLoaded', executeHook, { once: true });
+        }
+        setTimeout(executeHook, 50);
+        setTimeout(executeHook, 150);
     }
 
     resolvePath(obj, path) {

@@ -74,13 +74,15 @@ export class DataBinderV2 {
         if (datasetPayload && datasetPayload.summary) {
             const metadata = datasetPayload.metadata || {};
             const summary = datasetPayload.summary || {};
+            const year = metadata.year || datasetPayload.year || 2025;
+            const semester = metadata.semester || datasetPayload.semester || 2;
             const kecamatanList = datasetPayload.kecamatanData || [];
 
             if (isKabupaten) {
                 const totalP = summary.totalPenduduk || 2026081;
                 return {
-                    tahun: metadata.year || 2025,
-                    semester: metadata.semester || 2,
+                    tahun: year,
+                    semester: semester,
                     kabupaten: 'INFORMASI KEPENDUDUKAN KABUPATEN TASIKMALAYA',
                     kecamatan: 'KABUPATEN TASIKMALAYA',
                     totalPenduduk: totalP,
@@ -101,14 +103,14 @@ export class DataBinderV2 {
 
             // Search in kecamatanList
             const districtObj = kecamatanList.find(d => 
-                d.nama.toUpperCase().replace(/^KECAMATAN\s+/i, '').trim() === cleanRegion
+                (d.nama || '').toUpperCase().replace(/^KECAMATAN\s+/i, '').trim() === cleanRegion
             );
 
             if (districtObj) {
                 const totalP = districtObj.totalPenduduk || (districtObj.lakiLaki + districtObj.perempuan);
                 return {
-                    tahun: metadata.year || 2025,
-                    semester: metadata.semester || 2,
+                    tahun: year,
+                    semester: semester,
                     kabupaten: `INFORMASI KEPENDUDUKAN KECAMATAN ${cleanRegion}`,
                     kecamatan: `KECAMATAN ${cleanRegion}`,
                     totalPenduduk: totalP,

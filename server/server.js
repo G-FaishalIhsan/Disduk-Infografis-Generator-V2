@@ -14,6 +14,7 @@ import { ServerTemplateLoader } from './template-loader.js';
 import { ChromiumRenderer } from './renderer.js';
 import { SocialChromiumRenderer } from './social-renderer.js';
 import { browserManager } from './browser-manager.js';
+import { dataRouter } from './data-routes.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -24,6 +25,9 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
+
+// SQLite Data Endpoints (Phase A5)
+app.use('/api/data', dataRouter);
 
 // Serve static project assets so Puppeteer can load them via HTTP
 app.use('/img', express.static(path.join(projectRoot, 'img')));

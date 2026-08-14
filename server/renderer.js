@@ -40,17 +40,22 @@ export class ChromiumRenderer {
                     await document.fonts.ready;
                 }
 
-                // Wait for all images to load and decode
+                // Wait for all images to load and decode (with 2s fallback timeout)
                 const images = Array.from(document.querySelectorAll('img'));
-                await Promise.all(images.map(img => {
-                    if (img.complete && img.naturalHeight !== 0) {
-                        return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
-                    }
-                    return new Promise(resolve => {
-                        img.onload = resolve;
-                        img.onerror = resolve;
-                    });
-                }));
+                try {
+                    await Promise.race([
+                        Promise.all(images.map(img => {
+                            if (img.complete && img.naturalHeight !== 0) {
+                                return img.decode ? img.decode().catch(() => {}) : Promise.resolve();
+                            }
+                            return new Promise(resolve => {
+                                img.onload = resolve;
+                                img.onerror = resolve;
+                            });
+                        })),
+                        new Promise(r => setTimeout(r, 2000))
+                    ]);
+                } catch (e) {}
 
                 // Freeze CSS animations for a clean capture
                 const style = document.createElement('style');

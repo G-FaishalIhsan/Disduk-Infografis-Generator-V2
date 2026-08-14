@@ -13,7 +13,7 @@ Arsitektur V2 menggunakan pola **Decoupled Plug-and-Play Template Registry Syste
          │         ▼
          │    [ V1 Templates 1, 2, 3 ] ──► [ Puppeteer V1 Engine ] ──► [ V1 Single Page Output ]
          │
-         └──► V2 Pipeline (Dynamic Registry /api/v2/*)
+         └──► V2 Pipeline (Endpoints /api/data/* & /api/export/social/*)
                    │
                    ▼
               [ Template Registry Manifest ]

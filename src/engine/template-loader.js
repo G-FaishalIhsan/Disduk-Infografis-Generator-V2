@@ -88,10 +88,22 @@ export class TemplateLoader {
 
         return new Promise((resolve) => {
             const finish = () => resolve(doc);
-            if (doc.fonts && doc.fonts.ready) {
-                doc.fonts.ready.then(finish).catch(finish);
+            if (doc.readyState === 'complete') {
+                if (doc.fonts && doc.fonts.ready) {
+                    doc.fonts.ready.then(finish).catch(finish);
+                } else {
+                    setTimeout(finish, 30);
+                }
             } else {
-                setTimeout(finish, 50);
+                const onReady = () => {
+                    if (doc.fonts && doc.fonts.ready) {
+                        doc.fonts.ready.then(finish).catch(finish);
+                    } else {
+                        finish();
+                    }
+                };
+                doc.addEventListener('DOMContentLoaded', onReady, { once: true });
+                setTimeout(onReady, 80);
             }
         });
     }

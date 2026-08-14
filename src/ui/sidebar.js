@@ -6,6 +6,7 @@
  * Automatically triggers live data updates upon Mode and District changes.
  */
 import { DatasetManagerUI } from './dataset-manager-ui.js';
+import { DataEntryModal } from './data-entry-modal.js';
 import { TemplateRegistry } from '../engine/template-registry.js';
 
 const KECAMATAN_CODE_MAP = {
@@ -87,7 +88,44 @@ export class SidebarUI {
         // Log History Entries (Download Infografis Only)
         this.logs = options.logs || [];
 
-        this.datasetManagerUI = new DatasetManagerUI();
+        this.onDatasetSelect = options.onDatasetSelect || (() => {});
+
+        this.datasetManagerUI = new DatasetManagerUI({
+            onDatasetSelect: (ds) => {
+                if (ds) {
+                    const year = ds.year || ds.metadata?.year || this.selectedYear;
+                    const semester = ds.semester || ds.metadata?.semester || this.selectedSemester;
+                    this.selectedYear = year;
+                    this.selectedSemester = semester;
+                    const periodEl = this.container?.querySelector('#sidebar-social-dataset-period');
+                    if (periodEl) {
+                        periodEl.textContent = `SEM ${semester} — TAHUN ${year}`;
+                    }
+                    this.addLog(`Dataset dipilih: Sem ${semester} Tahun ${year}`);
+                    if (typeof this.onDatasetSelect === 'function') {
+                        this.onDatasetSelect(ds);
+                    }
+                }
+            },
+            onOpenDataEntry: () => {
+                if (this.dataEntryModal) {
+                    this.dataEntryModal.show();
+                }
+            }
+        });
+        this.dataEntryModal = new DataEntryModal({
+            onSaved: async (newDataset) => {
+                const yr = Number(newDataset.year || newDataset.metadata?.year);
+                const sem = Number(newDataset.semester || newDataset.metadata?.semester);
+                this.addLog(`Dataset disimpan ke SQLite: Sem ${sem} Tahun ${yr}`);
+                if (this.datasetManagerUI) {
+                    await this.datasetManagerUI.datasetManager.syncWithDatabase();
+                    if (yr) this.datasetManagerUI.selectedYear = yr;
+                    if (sem) this.datasetManagerUI.selectedSemester = sem;
+                    await this.datasetManagerUI.show();
+                }
+            }
+        });
         this.templateRegistry = new TemplateRegistry();
 
         // Full Infographics: Templates 1, 2, 3 (Compact Layout) are ALL ACTIVE
@@ -101,6 +139,27 @@ export class SidebarUI {
         this.socialTemplates = this.templateRegistry.getSocialTemplates();
 
         this.render();
+    }
+
+    /**
+     * Dynamically updates the active dataset info (Semester & Tahun)
+     */
+    updateActiveDatasetInfo(datasetObj) {
+        if (!datasetObj) return;
+        this.selectedYear = Number(datasetObj.year || datasetObj.metadata?.year || this.selectedYear || 2025);
+        this.selectedSemester = Number(datasetObj.semester || datasetObj.metadata?.semester || this.selectedSemester || 1);
+
+        const sourceLabel = this.container?.querySelector('#sidebar-dataset-source-label');
+        if (sourceLabel) {
+            sourceLabel.textContent = `Dataset JUMDUK Sem ${this.selectedSemester} ${this.selectedYear}`;
+        }
+
+        const socialPeriod = this.container?.querySelector('#sidebar-social-dataset-period');
+        if (socialPeriod) {
+            socialPeriod.textContent = `SEM ${this.selectedSemester} — TAHUN ${this.selectedYear}`;
+        }
+
+        this.addLog(`Dataset aktif: Sem ${this.selectedSemester} Tahun ${this.selectedYear}`);
     }
 
     addLog(message) {
@@ -124,25 +183,6 @@ export class SidebarUI {
                 <span class="text-slate-300 flex-1 leading-tight text-[10px]">${log.message}</span>
             </div>
         `).join('');
-    }
-
-    /**
-     * Dynamically updates the active dataset info (Semester & Tahun)
-     */
-    updateActiveDatasetInfo(datasetObj) {
-        if (!datasetObj) return;
-        this.selectedYear = datasetObj.year || 2025;
-        this.selectedSemester = datasetObj.semester || 2;
-
-        const sourceLabel = this.container.querySelector('#sidebar-dataset-source-label');
-        if (sourceLabel) {
-            sourceLabel.textContent = `Dataset JUMDUK Sem ${this.selectedSemester} ${this.selectedYear}`;
-        }
-
-        const socialPeriod = this.container.querySelector('#sidebar-social-dataset-period');
-        if (socialPeriod) {
-            socialPeriod.textContent = `Sem ${this.selectedSemester} — Tahun ${this.selectedYear}`;
-        }
     }
 
     render() {
@@ -243,8 +283,8 @@ export class SidebarUI {
                                 </span>
                             </div>
 
-                            <button id="btn-open-dataset-manager" class="w-full py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded text-[10px] font-extrabold flex items-center justify-center gap-1.5 transition shadow-sm">
-                                <i class="fa-solid fa-sliders"></i> Pilih Dataset Infografis
+                            <button id="btn-open-dataset-manager" class="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-extrabold flex items-center justify-center gap-2 transition shadow-md active:scale-95">
+                                <i class="fa-solid fa-sliders text-emerald-300"></i> Kelola & Pilih Dataset
                             </button>
                         </div>
                     `}
@@ -419,9 +459,18 @@ export class SidebarUI {
         });
 
         // Dataset Manager Modal Trigger
-        const btnOpenDm = this.container.querySelector('#btn-open-dataset-manager');
+        const btnOpenDm = this.container.querySelector('#btn-open-data-entry');
         if (btnOpenDm) {
             btnOpenDm.onclick = () => {
+                if (this.dataEntryModal) {
+                    this.dataEntryModal.show();
+                }
+            };
+        }
+
+        const btnOpenDmSelector = this.container.querySelector('#btn-open-dataset-manager');
+        if (btnOpenDmSelector) {
+            btnOpenDmSelector.onclick = () => {
                 if (this.datasetManagerUI) {
                     this.datasetManagerUI.show();
                 }
@@ -467,6 +516,7 @@ export class SidebarUI {
         const btnPng = this.container.querySelector('#btn-export-png');
         if (btnPng) {
             btnPng.onclick = () => {
+                if (this.isExporting) return;
                 this.addLog(`Mengunduh PNG — ${getTargetLabel()}`);
                 this.onExportPNG();
             };
@@ -475,6 +525,7 @@ export class SidebarUI {
         const btnJpg = this.container.querySelector('#btn-export-jpg');
         if (btnJpg) {
             btnJpg.onclick = () => {
+                if (this.isExporting) return;
                 this.addLog(`Mengunduh JPG — ${getTargetLabel()}`);
                 this.onExportJPG();
             };
@@ -483,6 +534,7 @@ export class SidebarUI {
         const btnPdf = this.container.querySelector('#btn-export-pdf');
         if (btnPdf) {
             btnPdf.onclick = () => {
+                if (this.isExporting) return;
                 this.addLog(`Mengunduh PDF — ${getTargetLabel()}`);
                 this.onExportPDF();
             };
@@ -491,11 +543,27 @@ export class SidebarUI {
         const btnZip = this.container.querySelector('#btn-export-social-zip');
         if (btnZip) {
             btnZip.onclick = () => {
+                if (this.isExporting) return;
                 const tmpl = this.selectedTemplateId === 'template-2-v2' ? 'Template 2 V2' : 'Template 1 V2';
                 this.addLog(`Mengunduh Paket ZIP Carousel — ${tmpl} (${getTargetLabel()})`);
                 this.onExportZIP();
             };
         }
+    }
+
+    setExportingState(isExporting) {
+        this.isExporting = isExporting;
+        if (!this.container) return;
+        const buttons = this.container.querySelectorAll('#btn-export-png, #btn-export-jpg, #btn-export-pdf, #btn-export-social-zip');
+        buttons.forEach(btn => {
+            if (isExporting) {
+                btn.classList.add('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                btn.setAttribute('disabled', 'true');
+            } else {
+                btn.classList.remove('opacity-50', 'cursor-not-allowed', 'pointer-events-none');
+                btn.removeAttribute('disabled');
+            }
+        });
     }
 
     initKecamatanSelect() {

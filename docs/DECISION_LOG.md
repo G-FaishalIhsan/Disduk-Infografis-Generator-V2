@@ -1,25 +1,27 @@
 # 📐 DECISION LOG (ARCHITECTURAL DECISIONS)
 
 ## ADR-001: Minimal Change Architecture & Zero Breaking Changes
-- **Date**: 2026-07-26
-- **Status**: Approved
-- **Context**: Project V1 already runs stably in production. V2 requires additional features for social media carousels.
-- **Decision**: All V2 development must be purely ADDITIVE. Core V1 files (`server/server.js`, `templates/template-1/`, `templates/template-2/`, `index.html`, `/img/`, `/assets/`) are frozen and untouched.
-- **Consequences**: V1 functions continue to work with 100% backward compatibility.
+- **Date**: 2026-07-26 (Amended: 2026-08-14)
+- **Status**: Approved & Active
+- **Context**: Project V1 already runs stably in production. V2 requires additional features for social media carousels and dynamic dataset management.
+- **Decision**: All V2 development must be purely ADDITIVE. 
+  - Core template assets, indexes, and legacy routes (`/api/export/png`, `/api/export/jpg`, `/api/export/pdf`) remain 100% backward compatible.
+  - *Amendment (2026-08-14)*: `server/server.js` is extended in an additive, non-breaking manner with SQLite dataset routers (`/api/data/*`) and Social Media Puppeteer capture endpoints (`/api/export/social/*`), preserving existing V1 export functionality untouched.
+- **Consequences**: V1 functions continue to work with 100% backward compatibility while enabling dynamic database-driven V2 workflows.
 
 ---
 
 ## ADR-002: Template 3 Future Compatibility & Workspace Separation
-- **Date**: 2026-07-26
+- **Date**: 2026-07-26 (Updated: 2026-08-14)
 - **Status**: Approved & Updated
 - **Context**: 
   - **Infografis Lengkap (Workspace 1)**: Template 3 (Compact Layout) berstatus **Active** dan 100% dapat digunakan.
-  - **Media Sosial (Workspace 2)**: Template 3 V2 berstatus **Maintenance / Coming Soon** karena desain versi carousel 4:5 belum selesai.
+  - **Media Sosial (Workspace 2)**: Template 3 V2 berstatus **Active / Plug & Play Ready** pada struktur `templates/social/template-3/`.
 - **Decision**: 
   1. The V2 architecture is designed using a **Plug-and-Play Template Registry Pattern** (`templates-manifest.json`).
   2. All V2 templates consume a standardized, normalized JSON data payload contract.
-  3. When Template 3 V2 is completed in the future, adding it to Workspace 2 will only require placing its HTML files in `templates/template-3-v2/` and updating its status in the JSON manifest to `"status": "active"`.
-  4. **Adding Template 3 V2 in the future will NOT require major refactoring, engine changes, route rewrites, or structural breaking changes to V1 or V2.**
+  3. Template 3 V2 resides in `templates/social/template-3/` with slide HTML files and manifest integration.
+  4. **Adding or updating templates in Workspace 2 does NOT require major refactoring, engine changes, route rewrites, or structural breaking changes to V1 or V2.**
 - **Consequences**: Seamless future extensibility without maintenance risk.
 
 ---

@@ -43,6 +43,7 @@ export class BindingEngine {
         const pekkaPctNum = 100 - kkLakiPctNum;
 
         const avgKkNum = total / (kk || 1);
+        const avgPendudukKecNum = Math.round(total / 39);
 
         const lakiPct = `${lakiPctNum.toFixed(2).replace('.', ',')}%`;
         const perempuanPct = `${perempuanPctNum.toFixed(2).replace('.', ',')}%`;
@@ -76,6 +77,7 @@ export class BindingEngine {
             'valKkLakiPct': kkLakiPct,
             'valPekkaPct': pekkaPct,
             'valAvgKk': avgKkNum.toFixed(2).replace('.', ','),
+            'valAvgPendudukKec': Formatter.formatNumber(avgPendudukKecNum),
             'valKTP': Formatter.formatNumber(ktp),
             'valKtpPct': ktpPct,
             'valAnakPct': anakPct,
@@ -87,6 +89,7 @@ export class BindingEngine {
             'valLuas': Formatter.formatArea(dataObj.luas || 2708),
             'valKepadatan': Formatter.formatDensity(dataObj.kepadatan || 748),
             'valSexRatio': sexRatio,
+            'valAnak': Formatter.formatNumber(Math.max(0, total - ktp)),
             'valUsiaMuda': Formatter.formatNumber(dataObj.usiaMuda || Math.round(total * 0.18)),
             'valUsiaProduktif': Formatter.formatNumber(dataObj.usiaProduktif || Math.round(total * 0.68)),
             'valUsiaLansia': Formatter.formatNumber(dataObj.usiaLansia || Math.round(total * 0.14)),
@@ -116,9 +119,11 @@ export class BindingEngine {
             'valKtp': fieldMap.valKTP,
             'valKK': fieldMap.valKK,
             'valKTP': fieldMap.valKTP,
+            'valAnak': fieldMap.valAnak,
             'valKtpPct': fieldMap.valKtpPct,
             'valSexRatio': fieldMap.valSexRatio,
-            'titleWilayah': fieldMap.valKecamatan
+            'titleWilayah': fieldMap.valKecamatan,
+            'valAvgPendudukKec': fieldMap.valAvgPendudukKec
         };
 
         for (const [id, value] of Object.entries(idMappings)) {
@@ -134,8 +139,8 @@ export class BindingEngine {
         // 4. Update Document Ownership SVG Progress Rings in Template 1 V2 Slide 2
         this.updateSvgProgressRings(doc, ktpPctNum, aktaLahirPctNum, aktaNikahPctNum);
 
-        // 5. Populate Top 3 Desa per-Kecamatan on Slide 2
-        this.bindTopDesa(doc, dataObj);
+        // 5. Populate Top 3 Kecamatan on Slide 2 dynamically from Database
+        this.bindTopKecamatan(doc, dataObj, activePayload);
 
         // 6. Populate 39 Kecamatan Table in Template 2 V2 Slide 2 if present
         this.bindKecamatanTableIfPresent(doc, activePayload);
@@ -174,9 +179,9 @@ export class BindingEngine {
     }
 
     /**
-     * Binds Top 3 Desa (Penduduk Terbanyak) per Kecamatan
+     * Binds Top 3 Kecamatan (Penduduk Terbanyak) dynamically from active database dataset
      */
-    static bindTopDesa(doc, dataObj) {
+    static bindTopKecamatan(doc, dataObj, activePayload) {
         const rank1Name = doc.querySelector('#valRank1Name');
         const rank1Count = doc.querySelector('#valRank1Count');
         const rank1Details = doc.querySelector('#valRank1Details');
@@ -191,115 +196,76 @@ export class BindingEngine {
 
         if (!rank1Name && !rank2Name && !rank3Name) return;
 
-        const cleanRegion = (dataObj.kecamatan || '').toUpperCase().replace(/^KECAMATAN\s+/i, '').trim();
-        const isKabupaten = !cleanRegion || cleanRegion === 'KABUPATEN TASIKMALAYA' || cleanRegion === 'KABUPATEN';
+        const formatKecName = (name) => {
+            if (!name) return 'Kecamatan';
+            const clean = name.replace(/^KECAMATAN\s+/i, '').trim();
+            const titleCase = clean.toLowerCase().split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            return `Kecamatan ${titleCase}`;
+        };
 
-        // Case 1: Kabupaten Selected -> Default Top 3 Villages of Kabupaten Tasikmalaya
-        if (isKabupaten) {
-            if (rank1Name) rank1Name.textContent = 'Desa Singaparna';
-            if (rank1Count) rank1Count.textContent = '14.850';
-            if (rank1Details) rank1Details.textContent = 'L: 7.510 • P: 7.340 • KK: 5.120';
+        const list = (activePayload && Array.isArray(activePayload.kecamatanData) && activePayload.kecamatanData.length > 0)
+            ? activePayload.kecamatanData
+            : (dataObj && Array.isArray(dataObj.kecamatanData) && dataObj.kecamatanData.length > 0)
+                ? dataObj.kecamatanData
+                : (DatasetService.getActiveDataset()?.kecamatanData || []);
 
-            if (rank2Name) rank2Name.textContent = 'Desa Cipakat';
-            if (rank2Count) rank2Count.textContent = '12.340';
-            if (rank2Details) rank2Details.textContent = 'L: 6.240 • P: 6.100 • KK: 4.310';
+        if (Array.isArray(list) && list.length >= 3) {
+            // Sort descending by total population
+            const sorted = [...list].sort((a, b) => {
+                const totA = a.totalPenduduk || ((a.lakiLaki || 0) + (a.perempuan || 0));
+                const totB = b.totalPenduduk || ((b.lakiLaki || 0) + (b.perempuan || 0));
+                return totB - totA;
+            });
 
-            if (rank3Name) rank3Name.textContent = 'Desa Cintaraja';
-            if (rank3Count) rank3Count.textContent = '9.780';
-            if (rank3Details) rank3Details.textContent = 'L: 4.950 • P: 4.830 • KK: 4.830';
+            const top1 = sorted[0];
+            const top2 = sorted[1];
+            const top3 = sorted[2];
+
+            const tot1 = top1.totalPenduduk || ((top1.lakiLaki || 0) + (top1.perempuan || 0));
+            const l1 = top1.lakiLaki || Math.round(tot1 * 0.51);
+            const p1 = top1.perempuan || (tot1 - l1);
+            const kk1 = top1.kepalaKeluarga || top1.kk || Math.round(tot1 / 3.4);
+
+            const tot2 = top2.totalPenduduk || ((top2.lakiLaki || 0) + (top2.perempuan || 0));
+            const l2 = top2.lakiLaki || Math.round(tot2 * 0.51);
+            const p2 = top2.perempuan || (tot2 - l2);
+            const kk2 = top2.kepalaKeluarga || top2.kk || Math.round(tot2 / 3.4);
+
+            const tot3 = top3.totalPenduduk || ((top3.lakiLaki || 0) + (top3.perempuan || 0));
+            const l3 = top3.lakiLaki || Math.round(tot3 * 0.51);
+            const p3 = top3.perempuan || (tot3 - l3);
+            const kk3 = top3.kepalaKeluarga || top3.kk || Math.round(tot3 / 3.4);
+
+            if (rank1Name) rank1Name.textContent = formatKecName(top1.nama || top1.kecamatan || top1.namaKecamatan);
+            if (rank1Count) rank1Count.textContent = Formatter.formatNumber(tot1);
+            if (rank1Details) rank1Details.textContent = `L: ${Formatter.formatNumber(l1)} • P: ${Formatter.formatNumber(p1)} • KK: ${Formatter.formatNumber(kk1)}`;
+
+            if (rank2Name) rank2Name.textContent = formatKecName(top2.nama || top2.kecamatan || top2.namaKecamatan);
+            if (rank2Count) rank2Count.textContent = Formatter.formatNumber(tot2);
+            if (rank2Details) rank2Details.textContent = `L: ${Formatter.formatNumber(l2)} • P: ${Formatter.formatNumber(p2)} • KK: ${Formatter.formatNumber(kk2)}`;
+
+            if (rank3Name) rank3Name.textContent = formatKecName(top3.nama || top3.kecamatan || top3.namaKecamatan);
+            if (rank3Count) rank3Count.textContent = Formatter.formatNumber(tot3);
+            if (rank3Details) rank3Details.textContent = `L: ${Formatter.formatNumber(l3)} • P: ${Formatter.formatNumber(p3)} • KK: ${Formatter.formatNumber(kk3)}`;
             return;
         }
 
-        // Case 2: Specific Kecamatan Selected -> Top 3 Villages of that Kecamatan
-        const VILLAGE_MAP = {
-            'SINGAPARNA': [
-                { name: 'Desa Singaparna', r: 0.20 },
-                { name: 'Desa Cipakat', r: 0.16 },
-                { name: 'Desa Cintaraja', r: 0.13 }
-            ],
-            'CIPATUJAH': [
-                { name: 'Desa Cipatujah', r: 0.22 },
-                { name: 'Desa Bantarkalong', r: 0.17 },
-                { name: 'Desa Ciheras', r: 0.14 }
-            ],
-            'KARANGNUNGGAL': [
-                { name: 'Desa Karangnunggal', r: 0.21 },
-                { name: 'Desa Cidadap', r: 0.16 },
-                { name: 'Desa Ciawi', r: 0.13 }
-            ],
-            'MANONJAYA': [
-                { name: 'Desa Manonjaya', r: 0.23 },
-                { name: 'Desa Margahayu', r: 0.17 },
-                { name: 'Desa Cibeunyaying', r: 0.14 }
-            ],
-            'CIAWI': [
-                { name: 'Desa Ciawi', r: 0.22 },
-                { name: 'Desa Kertamukti', r: 0.16 },
-                { name: 'Desa Bugel', r: 0.13 }
-            ],
-            'CISAYONG': [
-                { name: 'Desa Cisayong', r: 0.21 },
-                { name: 'Desa Sukamaju', r: 0.17 },
-                { name: 'Desa Cikadu', r: 0.13 }
-            ],
-            'RAJAPOLAH': [
-                { name: 'Desa Rajapolah', r: 0.22 },
-                { name: 'Desa Magonrejo', r: 0.16 },
-                { name: 'Desa Sukaraja', r: 0.14 }
-            ],
-            'CIGALONTANG': [
-                { name: 'Desa Cigalontang', r: 0.20 },
-                { name: 'Desa Jayapura', r: 0.16 },
-                { name: 'Desa Lengkongjaya', r: 0.13 }
-            ],
-            'SODONGHILIR': [
-                { name: 'Desa Sodonghilir', r: 0.21 },
-                { name: 'Desa Cukangjayaguna', r: 0.16 },
-                { name: 'Desa Raksajaya', r: 0.13 }
-            ],
-            'SUKARAJA': [
-                { name: 'Desa Sukaraja', r: 0.22 },
-                { name: 'Desa Linggaraja', r: 0.16 },
-                { name: 'Desa Margalaksana', r: 0.13 }
-            ]
-        };
+        // Fallback default Top 3
+        if (rank1Name) rank1Name.textContent = 'Kecamatan Singaparna';
+        if (rank1Count) rank1Count.textContent = '73.799';
+        if (rank1Details) rank1Details.textContent = 'L: 37.511 • P: 36.288 • KK: 27.618';
 
-        const titleCaseName = cleanRegion.charAt(0) + cleanRegion.slice(1).toLowerCase();
-        const villages = VILLAGE_MAP[cleanRegion] || [
-            { name: `Desa ${titleCaseName} Utama`, r: 0.21 },
-            { name: `Desa ${titleCaseName} Timur`, r: 0.16 },
-            { name: `Desa ${titleCaseName} Barat`, r: 0.13 }
-        ];
+        if (rank2Name) rank2Name.textContent = 'Kecamatan Karangnunggal';
+        if (rank2Count) rank2Count.textContent = '61.246';
+        if (rank2Details) rank2Details.textContent = 'L: 30.803 • P: 30.443 • KK: 20.859';
 
-        const tot = dataObj.totalPenduduk || 50000;
-        const lakiRatio = (dataObj.lakiLaki || 25000) / (tot || 1);
+        if (rank3Name) rank3Name.textContent = 'Kecamatan Cipatujah';
+        if (rank3Count) rank3Count.textContent = '58.412';
+        if (rank3Details) rank3Details.textContent = 'L: 29.540 • P: 28.872 • KK: 19.450';
+    }
 
-        const v1Tot = Math.round(tot * villages[0].r);
-        const v1L = Math.round(v1Tot * lakiRatio);
-        const v1P = v1Tot - v1L;
-        const v1Kk = Math.round(v1Tot / 3.3);
-
-        const v2Tot = Math.round(tot * villages[1].r);
-        const v2L = Math.round(v2Tot * lakiRatio);
-        const v2P = v2Tot - v2L;
-        const v2Kk = Math.round(v2Tot / 3.3);
-
-        const v3Tot = Math.round(tot * villages[2].r);
-        const v3L = Math.round(v3Tot * lakiRatio);
-        const v3P = v3Tot - v3L;
-        const v3Kk = Math.round(v3Tot / 3.3);
-
-        if (rank1Name) rank1Name.textContent = villages[0].name;
-        if (rank1Count) rank1Count.textContent = Formatter.formatNumber(v1Tot);
-        if (rank1Details) rank1Details.textContent = `L: ${Formatter.formatNumber(v1L)} • P: ${Formatter.formatNumber(v1P)} • KK: ${Formatter.formatNumber(v1Kk)}`;
-
-        if (rank2Name) rank2Name.textContent = villages[1].name;
-        if (rank2Count) rank2Count.textContent = Formatter.formatNumber(v2Tot);
-        if (rank2Details) rank2Details.textContent = `L: ${Formatter.formatNumber(v2L)} • P: ${Formatter.formatNumber(v2P)} • KK: ${Formatter.formatNumber(v2Kk)}`;
-
-        if (rank3Name) rank3Name.textContent = villages[2].name;
-        if (rank3Count) rank3Count.textContent = Formatter.formatNumber(v3Tot);
-        if (rank3Details) rank3Details.textContent = `L: ${Formatter.formatNumber(v3L)} • P: ${Formatter.formatNumber(v3P)} • KK: ${Formatter.formatNumber(v3Kk)}`;
+    static bindTopDesa(doc, dataObj, activePayload) {
+        this.bindTopKecamatan(doc, dataObj, activePayload);
     }
 
     /**
@@ -430,21 +396,68 @@ export class BindingEngine {
      * Updates Chart.js doughnut data on Slide 2 dynamically
      */
     static updateChartsIfPresent(doc, dataObj) {
+        if (!doc) return;
+
+        const total = dataObj.totalPenduduk || 2026081;
+        const laki = dataObj.lakiLaki || 1024500;
+        const perempuan = dataObj.perempuan || 1001581;
+        const wajibKtp = dataObj.wajibKtp || 1320400;
+        const anak = Math.max(0, total - wajibKtp);
+
+        const genderCanvas = doc.getElementById('genderChartCanvas');
+        if (genderCanvas) {
+            genderCanvas.setAttribute('data-laki', String(laki));
+            genderCanvas.setAttribute('data-perempuan', String(perempuan));
+        }
+
+        const ageCanvas = doc.getElementById('ageChartCanvas');
+        if (ageCanvas) {
+            ageCanvas.setAttribute('data-wajib-ktp', String(wajibKtp));
+            ageCanvas.setAttribute('data-anak', String(anak));
+        }
+
         if (!doc.defaultView || !doc.defaultView.Chart) return;
 
         try {
-            const chartInstances = doc.defaultView.Chart.instances;
+            const Chart = doc.defaultView.Chart;
+
+            // 1. Update using Chart.getChart (Modern Chart.js v3/v4)
+            if (typeof Chart.getChart === 'function') {
+                if (genderCanvas) {
+                    const chart = Chart.getChart(genderCanvas);
+                    if (chart && chart.data && chart.data.datasets && chart.data.datasets[0]) {
+                        chart.data.datasets[0].data = [laki, perempuan];
+                        chart.update('none');
+                    }
+                }
+
+                if (ageCanvas) {
+                    const chart = Chart.getChart(ageCanvas);
+                    if (chart && chart.data && chart.data.datasets && chart.data.datasets[0]) {
+                        chart.data.datasets[0].data = [wajibKtp, anak];
+                        chart.update('none');
+                    }
+                }
+            }
+
+            // 2. Update via Chart.instances collection
+            const chartInstances = Chart.instances;
             if (chartInstances) {
                 Object.values(chartInstances).forEach(chart => {
                     if (chart.options) {
                         chart.options.animation = false;
                     }
-                    if (chart.canvas && chart.canvas.id === 'genderChartCanvas') {
-                        chart.data.datasets[0].data = [dataObj.lakiLaki || 1024500, dataObj.perempuan || 1001581];
-                        chart.update('none');
-                    } else if (chart.canvas && chart.canvas.id === 'ageChartCanvas') {
-                        chart.data.datasets[0].data = [dataObj.wajibKtp || 1320400, ((dataObj.totalPenduduk || 2026081) - (dataObj.wajibKtp || 1320400)) || 705681];
-                        chart.update('none');
+                    const canvasId = chart.canvas ? chart.canvas.id : '';
+                    if (canvasId === 'genderChartCanvas' || canvasId === 's1GenderChart') {
+                        if (chart.data && chart.data.datasets && chart.data.datasets[0]) {
+                            chart.data.datasets[0].data = [laki, perempuan];
+                            chart.update('none');
+                        }
+                    } else if (canvasId === 'ageChartCanvas') {
+                        if (chart.data && chart.data.datasets && chart.data.datasets[0]) {
+                            chart.data.datasets[0].data = [wajibKtp, anak];
+                            chart.update('none');
+                        }
                     }
                 });
             }
