@@ -1,89 +1,93 @@
 # 📊 Disduk Infografis Generator V2
 
-> **Generator Infografis Kependudukan & Pencatatan Sipil**
+> **Generator Infografis Kependudukan & Pencatatan Sipil**  
 > Dinas Kependudukan dan Pencatatan Sipil (Disdukcapil) Kabupaten Tasikmalaya
 
-Aplikasi web berbasis Node.js dan JavaScript murni (ES Modules) untuk mengelola data agregat kependudukan dan mengekspornya menjadi infografis resolusi tinggi (HiDPI) — baik untuk kebutuhan cetak (poster A4) maupun media sosial (carousel Instagram) — secara instan, dinamis, dan berbasis data nyata dari database.
+Aplikasi web modern berbasis Node.js dan Vanilla JavaScript (ES Modules native) untuk mengelola data agregat kependudukan serta memproduksi infografis beresolusi tinggi (HiDPI) secara instan, dinamis, dan terintegrasi langsung dengan database SQLite lokal.
+
+Mendukung dua kanal visualisasi utama: **Poster Cetak A4** untuk laporan resmi dan **Carousel Instagram (4:5)** untuk publikasi media sosial.
+
+---
 
 [![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![Express](https://img.shields.io/badge/Express-4.x-000000?logo=express&logoColor=white)](https://expressjs.com/)
 [![SQLite](https://img.shields.io/badge/SQLite-better--sqlite3-003B57?logo=sqlite&logoColor=white)](https://github.com/WiseLibs/better-sqlite3)
 [![Puppeteer](https://img.shields.io/badge/Puppeteer-Chromium-40B5A4?logo=puppeteer&logoColor=white)](https://pptr.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.x-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
+[![Version](https://img.shields.io/badge/Version-2.0.0-blue.svg)](docs/CHANGELOG.md)
 
 ---
 
 ## 📑 Daftar Isi
 
-- [Ringkasan](#-ringkasan)
-- [Fitur Utama](#-fitur-utama)
-- [Arsitektur & Teknologi](#️-arsitektur--teknologi)
-- [Struktur Direktori](#-struktur-direktori)
-- [Prasyarat](#-prasyarat)
-- [Instalasi & Menjalankan](#-instalasi--menjalankan)
-- [Konfigurasi (Environment Variables)](#-konfigurasi-environment-variables)
-- [Skema Database](#-skema-database)
-- [Alur Kerja Data (Data Flow)](#-alur-kerja-data-data-flow)
-- [Menjalankan Pengujian](#-menjalankan-pengujian)
-- [Troubleshooting](#-troubleshooting)
-- [Dokumentasi Tambahan](#-dokumentasi-tambahan)
-- [Batasan & Rencana Pengembangan](#-batasan--rencana-pengembangan)
-- [Lisensi & Hak Cipta](#-lisensi--hak-cipta)
+- [🌟 Ringkasan Sistem](#-ringkasan-sistem)
+- [🎯 Fitur Utama](#-fitur-utama)
+- [🛠️ Arsitektur & Teknologi](#️-arsitektur--teknologi)
+- [📁 Struktur Direktori](#-struktur-direktori)
+- [📋 Prasyarat](#-prasyarat)
+- [🚀 Instalasi & Menjalankan](#-instalasi--menjalankan)
+- [📖 Panduan Penggunaan (Workflow Operator)](#-panduan-penggunaan-workflow-operator)
+- [⚙️ Konfigurasi](#️-konfigurasi)
+- [🗄️ Skema Database](#️-skema-database)
+- [🔄 Alur Data (Data Flow)](#-alur-data-data-flow)
+- [🧪 Menjalankan Pengujian (Testing)](#-menjalankan-pengujian-testing)
+- [🩺 Troubleshooting](#-troubleshooting)
+- [📚 Dokumentasi Terkait](#-dokumentasi-terkait)
+- [📄 Lisensi & Hak Cipta](#-lisensi--hak-cipta)
 
 ---
 
-## 🌟 Ringkasan
+## 🌟 Ringkasan Sistem
 
-Project ini punya **dua workspace independen** yang sengaja diisolasi satu sama lain (masing-masing punya sumber data, skema binding, dan template render sendiri), plus **satu backend server** (Express + Puppeteer) yang melayani rendering & export untuk keduanya:
+Project ini menggunakan arsitektur **Dual Workspace Mandiri** yang diisolasi satu sama lain, didukung oleh **satu backend export server** terpadu:
 
-| | **Full Workspace** | **Social Workspace** |
+| Komponen | **Full Workspace (Infografis Cetak)** | **Social Workspace (Media Sosial)** |
 |---|---|---|
-| Output | Poster infografis A4 (cetak/web) | Carousel Instagram 2 slide (1080×1350px) |
-| Template | Template 1 / 2 / 3 (`templates/template-1..3/`) | Template 1 / 2 / 3 V2 (`templates/social/template-1..3/`) |
-| Sumber data | Preset PDF Profil Kependudukan (`src/parsers/pdf-parser.js`) + database SQLite (opsional) | Database SQLite (`database/app_database.sqlite`), input manual/Excel |
-| Cakupan wilayah | Kabupaten & 39 Kecamatan | Kabupaten (per periode tahun/semester) |
+| **Tujuan** | Cetak dokumen resmi, poster, banner A4 | Publikasi carousel Instagram (Slide 1 & Slide 2) |
+| **Dimensi Output** | Rasio Poster A4 HiDPI | 1080 × 1350 px (Rasio 4:5 Instagram) |
+| **Pilihan Template** | Template 1 (Modern), 2 (Classic), 3 (Compact) | Template 1, 2, 3 V2 (Plug-and-Play Registry) |
+| **Cakupan Wilayah** | Kabupaten Tasikmalaya & 39 Kecamatan | Kabupaten Tasikmalaya (Semesteran/Tahunan) |
+| **Sumber Data** | Dataset SQLite aktif / Preset kependudukan | Database SQLite (`database/app_database.sqlite`) |
+| **Format Export** | PNG, JPG, PDF | PNG, JPG, PDF, ZIP (Paket multi-slide via SSE) |
 
 ---
 
 ## 🎯 Fitur Utama
 
-### 1. Dual Workspace Mandiri
-- **Full Infografis**: 3 pilihan template poster, filter per Kabupaten atau 39 Kecamatan, *Auto-fitter Engine* agar layout tidak overflow, ganti template/kecamatan tanpa reload.
-- **Social Media Carousel**: Rasio 4:5 standar Instagram, live preview 2 slide (ringkasan demografi & rincian dokumen kependudukan + Top 3 Kecamatan), tema Emerald Light/Dark.
+### 1. Dual Visual Workspace
+- **Full Infografis A4**: Pilihan 3 template infografis lengkap dengan filter Kabupaten dan 39 Kecamatan di Tasikmalaya, dilengkapi *Auto-fitter Engine* untuk mencegah overflow teks dan diagram.
+- **Social Media Carousel**: Layout 2 slide terkoordinasi (Slide 1: Ringkasan Demografi, Piramida Penduduk, Status Kawin & Agama; Slide 2: Rincian Dokumen Kependudukan KK/KTP/KIA/Akta & Peringkat Top 3 Kecamatan).
+- **Tema Emerald Light & Dark**: Penggantian tema antarmuka visual secara mulus tanpa reload halaman.
 
-### 2. Manajemen Dataset & Database SQLite
-- Penyimpanan lokal di `database/app_database.sqlite` (mode WAL) — dataset per tahun/semester, satu dataset aktif pada satu waktu.
-- Unggah data dari Excel/CSV dengan normalizer otomatis (deteksi sinonim nama kolom, deteksi tahun & semester dari nama/isi file).
-- Form input data manual dengan auto-kalkulasi persentase, rasio gender, migrasi netto.
-- Dilengkapi sistem otorisasi dan proteksi untuk operasi perubahan dataset.
-- Riwayat export tercatat di tabel `export_logs`.
+### 2. Manajemen Dataset & Basis Data SQLite
+- **Penyimpanan Lokal Andal**: Menggunakan SQLite dengan mode WAL (*Write-Ahead Logging*) untuk konkurensi tinggi dan performa cepat.
+- **Smart Excel/CSV Importer**: Mengimpor data format JUMDUK (Buku Profil Semester) dengan sistem pencocokan nama kolom otomatis (*synonym mapping*).
+- **Manual Data Entry Form**: Formulir input data kecamatan dan kabupaten secara langsung dengan perhitungan otomatis (rasio jenis kelamin, persentase kepemilikan dokumen, dan migrasi netto).
+- **Sistem Pengamanan Data**: Dilengkapi dialog konfirmasi kustom dan proteksi otorisasi untuk operasi tulis (tambah dataset, ganti aktif, atau hapus).
+- **Audit & Export History**: Riwayat export tercatat otomatis di tabel `export_logs`.
 
-### 3. Engine Export Resolusi Tinggi
-- Format: **PNG**, **JPG**, **PDF**, dan **ZIP** (paket carousel multi-slide).
-- Render lewat Chromium headless (Puppeteer) — hasil tajam sesuai ukuran cetak/asli, bukan screenshot DOM biasa.
-- Progress export real-time via Server-Sent Events (SSE) untuk paket ZIP.
-- Anti-hang: pemuat gambar (*image waiter*) dibungkus timeout race, sehingga export tidak macet meskipun ada aset gambar yang lambat/gagal dimuat.
-- Anti-duplicate click: tombol export terkunci selama proses berjalan.
+### 3. High-Resolution Chromium Export Engine
+- **Presisi Piksel**: Menggunakan Puppeteer Chromium headless untuk merender DOM menjadi gambar dan dokumen vektor PDF beresolusi tinggi (bukan canvas snapshot beresolusi rendah).
+- **SSE Real-time Progress Streaming**: Pengunduhan paket ZIP carousel multi-slide menyajikan progress bar langsung ke layar pengguna melalui *Server-Sent Events*.
+- **Anti-Hang Protection**: Pemuat aset gambar dibekali perlindungan *timeout race condition* sehingga proses export tidak akan menggantung jika ada aset eksternal yang lambat.
+- **Queue Protection**: Tombol export terkunci secara otomatis selama render berlangsung untuk mencegah duplicate submission.
 
 ---
 
 ## 🛠️ Arsitektur & Teknologi
 
-**Frontend** — `index.html`, `src/*` (Vanilla JS ES Modules, tanpa framework/bundler)
-- Tailwind CSS (via CDN) + custom CSS tokens (`style.css`)
-- Chart.js untuk grafik donat & progress
-- Native `fetch` untuk komunikasi ke REST API backend
+### Frontend
+- **Runtime**: Vanilla JavaScript (ES Modules native, tanpa framework berat / bundler)
+- **Styling**: [Tailwind CSS](https://tailwindcss.com/) (CDN) + Custom Design System tokens (`style.css`)
+- **Visualisasi Grafik**: [Chart.js](https://www.chartjs.org/) untuk visualisasi donat & progress ring
+- **Komunikasi**: Fetch API & Server-Sent Events (SSE)
 
-**Backend** — `server/*` (Node.js + Express, `"type": "module"`)
-- Express.js — REST API & static file server
-- Puppeteer — render HTML ke PNG/JPG/PDF via Chromium headless, dengan browser instance singleton (`browser-manager.js`) untuk efisiensi
-- better-sqlite3 — akses database SQLite secara sinkron
-- xlsx (SheetJS) — parsing file Excel/CSV yang diunggah
-- jszip / archiver — kompresi paket ZIP carousel
-
-**Data** — `database/`, `storage/`, `data/`
-- `database/app_database.sqlite` — dataset kependudukan per tahun/semester
-- `storage/datasets/{2023,2024,2025}/` — arsip file Excel sumber per tahun
-- `storage/exports/`, `storage/logs/` — hasil export & log
+### Backend
+- **Framework**: [Express.js](https://expressjs.com/) (Node.js `"type": "module"`)
+- **Renderer**: [Puppeteer](https://pptr.dev/) (Chromium headless singleton instance pool via `browser-manager.js`)
+- **Database Engine**: [better-sqlite3](https://github.com/WiseLibs/better-sqlite3) (sinkron, zero-latency)
+- **Data Processor**: [SheetJS (xlsx)](https://docs.sheetjs.com/) untuk parsing Excel
+- **Kompresi Arsip**: [JSZip](https://stuk.github.io/jszip/) untuk bundel export carousel ZIP
 
 ---
 
@@ -91,55 +95,55 @@ Project ini punya **dua workspace independen** yang sengaja diisolasi satu sama 
 
 ```text
 ├── database/
-│   └── app_database.sqlite          # Database SQLite aktif (WAL mode)
-├── docs/                            # Dokumentasi arsitektur, PRD, ADR, changelog
-│   ├── ARCHITECTURE_V2.md
-│   ├── DECISION_LOG.md              # Catatan keputusan arsitektural (ADR)
-│   ├── PRD_V2.md
-│   └── CHANGELOG.md
-├── img/                             # Logo, header, dan aset gambar statis
-├── data/                            # Data JSON pendukung (mis. baseline semester)
-├── storage/
-│   ├── datasets/{2023,2024,2025}/   # Arsip file Excel sumber per tahun
-│   ├── exports/                     # Output sementara hasil export
-│   └── logs/                        # Log aplikasi
-├── server/                          # Backend Express + Puppeteer
-│   ├── server.js                    # Entry point, endpoint export & health check
-│   ├── data-routes.js               # REST API dataset (mount di /api/data)
-│   ├── browser-manager.js           # Singleton pool Chromium (Puppeteer)
-│   ├── renderer.js                  # Renderer Full Workspace
-│   ├── social-renderer.js           # Renderer Social Workspace
-│   ├── template-loader.js           # Loader & validasi template ID (server-side)
+│   └── app_database.sqlite          # Database SQLite aktif (mode WAL)
+├── data/                            # File referensi baseline semester (JSON)
+├── docs/                            # Dokumentasi teknis & arsitektur
+│   ├── ARCHITECTURE_V2.md           # Desain arsitektur detail
+│   ├── DECISION_LOG.md              # Architecture Decision Records (ADR)
+│   ├── PRD_V2.md                    # Product Requirements Document
+│   └── CHANGELOG.md                 # Catatan rilis dan versi
+├── img/                             # Aset gambar, logo Disdukcapil, dan background
+├── server/                          # Backend Express & Puppeteer
+│   ├── server.js                    # Server entry point & export routes
+│   ├── browser-manager.js           # Puppeteer singleton manager & pre-warm pool
+│   ├── data-routes.js               # REST API manajemen data & dataset
+│   ├── renderer.js                  # Engine render poster Full Workspace
+│   ├── social-renderer.js           # Engine render carousel Social Workspace
+│   ├── template-loader.js           # Validator & loader template server-side
 │   └── db/
-│       ├── connection.js            # Koneksi better-sqlite3 (WAL)
-│       ├── migrate.js / migrations/ # Skema & migrasi database
-│       ├── seed.js / seed-full.js   # Seeder data awal
-│       └── repositories/            # Data access layer (dataset, region, export log)
-├── src/                             # Frontend (client-side)
-│   ├── app.js                       # Orkestrator utama alur aplikasi
-│   ├── engine/                      # Binder, template engine, export engine, auto-fitter
-│   ├── excel/                       # Reader & normalizer Excel/CSV
-│   ├── parsers/                     # Parser preset PDF/JSON kependudukan
-│   ├── services/                    # Client HTTP ke REST API dataset
-│   ├── charts/                      # Wrapper Chart.js (donut, progress ring)
-│   └── ui/                          # Sidebar, modal dialog, form input data, theme controller
+│       ├── connection.js            # Koneksi database SQLite (WAL mode)
+│       ├── migrate.js               # Runner migrasi skema database
+│       ├── seed.js / seed-full.js   # Script seeder data awal Excel ke SQLite
+│       └── repositories/            # Data Access Layer (Dataset, Region, Export Log)
+├── src/                             # Frontend JavaScript
+│   ├── app.js                       # Controller utama aplikasi
+│   ├── charts/                      # Modul pembuat grafik Chart.js
+│   ├── engine/                      # Data binding, export engine, template engine
+│   ├── excel/                       # Dataset manager, normalizer, dan synonym mapping
+│   ├── parsers/                     # Parser PDF dan fallback JSON
+│   ├── services/                    # API client HTTP ke endpoint backend
+│   └── ui/                          # Sidebar, modal dialog, formulir input data
+├── storage/
+│   ├── datasets/                    # File sumber Excel (2023, 2024, 2025)
+│   ├── exports/                     # Temporary export artifacts
+│   └── logs/                        # File log operasional
 ├── templates/
-│   ├── template-1/ template-2/ template-3/   # Template Full Workspace (poster A4)
+│   ├── template-1..3/               # Template Full Workspace (Poster A4)
 │   └── social/
-│       └── template-1/ template-2/ template-3/  # Template Social Workspace (carousel)
-├── test/                            # ~30 skrip pengujian (Puppeteer-based, end-to-end)
-├── index.html                       # Entry point frontend
-├── style.css                        # Style global (custom, di luar Tailwind)
-└── package.json
+│       └── template-1..3/           # Template Social Media Carousel (2 Slide)
+├── test/                            # Suite pengujian E2E & regresi Puppeteer
+├── index.html                       # Entry point antarmuka web
+├── package.json                     # Definisi dependensi & skrip Node.js
+└── style.css                        # Styling kustom antarmuka
 ```
 
 ---
 
 ## 📋 Prasyarat
 
-- [Node.js](https://nodejs.org/) **v18 atau lebih baru** (dibutuhkan untuk ES Modules native & kompatibilitas Puppeteer terbaru)
-- npm (bawaan Node.js)
-- Ruang disk yang cukup untuk Chromium yang diunduh otomatis oleh Puppeteer saat `npm install` (± 200–300MB)
+- **Node.js**: Versi `18.0.0` atau lebih tinggi
+- **npm**: Bawaan dari instalasi Node.js
+- **Koneksi Internet**: Diperlukan saat pertama kali `npm install` untuk mengunduh binary Chromium yang sesuai dengan sistem operasi Anda.
 
 ---
 
@@ -155,166 +159,171 @@ cd Disduk-Infografis-Generator-V2
 ```bash
 npm install
 ```
-> Perintah ini juga akan mengunduh binary Chromium untuk Puppeteer. Pastikan koneksi internet stabil pada instalasi pertama.
 
 ### 3. Jalankan Server
 ```bash
 npm start
 ```
-Server berjalan di `http://localhost:3000` secara default (lihat [Konfigurasi](#-konfigurasi-environment-variables) untuk mengganti port).
 
-> **Catatan:** `npm run dev` saat ini identik dengan `npm start` (belum menggunakan file-watcher seperti `nodemon`). Untuk auto-reload saat development, jalankan manual dengan `nodemon server/server.js` (perlu `npm install -g nodemon` atau sebagai dev-dependency) atau restart manual setelah setiap perubahan.
+Server akan aktif secara lokal di port `3000`.
 
-### 4. Buka Aplikasi
-Akses browser ke:
-```
+### 4. Akses Aplikasi
+Buka peramban (browser) dan kunjungi:
+```text
 http://localhost:3000
 ```
 
 ---
 
-## ⚙️ Konfigurasi (Environment Variables)
+## 📖 Panduan Penggunaan (Workflow Operator)
+
+### A. Navigasi & Memilih Mode
+1. Pada sidebar kiri, pilih mode visualisasi:
+   - **Full Workspace**: Untuk membuat infografis satu halaman poster A4.
+   - **Social Workspace**: Untuk membuat paket postingan carousel Instagram 2 slide (1080x1350px).
+2. Pilih nomor template yang diinginkan (Template 1, Template 2, atau Template 3).
+
+### B. Mengelola Dataset Kependudukan
+1. Klik tombol **Kelola Dataset** di sidebar.
+2. Anda dapat:
+   - **Memilih Dataset Aktif**: Pilih semester/tahun yang ingin divisualisasikan, lalu klik **Jadikan Aktif**.
+   - **Upload File Excel Baru**: Unggah file `JUMDUK SEMESTER` (.xlsx). Kolom data akan dipetakan secara otomatis.
+   - **Entri Data Manual**: Tambahkan data baru secara langsung melalui form entri data berpanduan.
+
+### C. Melakukan Ekspor
+1. Pastikan pratinjau (*live preview*) pada layar sudah menampilkan data yang sesuai.
+2. Di panel atas atau sidebar:
+   - Pilih format ekspor: **PNG**, **JPG**, atau **PDF**.
+   - Untuk Social Media, Anda juga dapat mengklik **Export Carousel (ZIP)** untuk mengunduh kedua slide sekaligus dalam satu file terkompresi dengan progress bar real-time.
+3. File akan diproses oleh mesin Chromium server dan otomatis diunduh ke peramban Anda.
+
+---
+
+## ⚙️ Konfigurasi
+
+Variabel lingkungan yang dapat dikonfigurasi:
 
 | Variabel | Default | Keterangan |
 |---|---|---|
-| `PORT` | `3000` | Port HTTP server Express |
+| `PORT` | `3000` | Port HTTP lokal untuk menjalankan Express server |
 
-Contoh menjalankan di port lain:
+Menjalankan pada port khusus:
 ```bash
+# Di Linux / macOS
 PORT=8080 npm start
+
+# Di Windows (PowerShell)
+$env:PORT="8080"; npm start
 ```
 
 ---
 
 ## 🗄️ Skema Database
 
-Skema didefinisikan di `server/db/migrations/001_initial_schema.sql`, dieksekusi otomatis lewat `server/db/migrate.js` saat aplikasi pertama kali dijalankan.
+Skema dikelola menggunakan SQLite (`database/app_database.sqlite`) dan termigrasi otomatis pada saat server pertama kali diinisialisasi:
 
 ```mermaid
 erDiagram
-    DATASETS ||--o{ DATASET_REGIONS : contains
-    DATASETS ||--o{ EXPORT_LOGS : logs
+    DATASETS ||--o{ DATASET_REGIONS : "memiliki wilayah"
+    DATASETS ||--o{ EXPORT_LOGS : "mencatat log"
 
     DATASETS {
-        text id PK
-        integer year
-        integer semester
-        integer is_active
-        text status
-        text uploaded_at
-        text last_used_at
+        text id PK "Contoh: social-2025-1"
+        integer year "Tahun (misal 2025)"
+        integer semester "Semester (1 atau 2)"
+        integer is_active "1 jika aktif, 0 jika arsip"
+        text status "Status dataset"
+        text uploaded_at "Waktu pembuatan"
+        text last_used_at "Waktu terakhir digunakan"
     }
+
     DATASET_REGIONS {
         integer id PK
         text dataset_id FK
-        text region_code
-        text region_name
-        integer is_kabupaten
-        text payload_json
+        text region_code "Kode wilayah/kecamatan"
+        text region_name "Nama kecamatan atau KABUPATEN"
+        integer is_kabupaten "1 jika level kabupaten, 0 jika kecamatan"
+        text payload_json "Payload data demografi lengkap"
     }
+
     EXPORT_LOGS {
         integer id PK
         text dataset_id FK
-        text template_id
-        text format
-        text exported_at
+        text region_name "Wilayah yang diekspor"
+        text template_id "ID template yang digunakan"
+        text format "png | jpg | pdf | zip"
+        text exported_at "Timestamp ekspor"
     }
 ```
 
-Data access dilakukan lewat repository pattern di `server/db/repositories/` (`datasetRepository.js`, `regionRepository.js`, `fullDatasetRepository.js`, `exportLogRepository.js`) — tidak ada query SQL mentah yang ditulis langsung di route handler.
+---
+
+## 🔄 Alur Data (Data Flow)
+
+```
+[Sumber Data Excel/Input Manual]
+               │
+               ▼
+[SQLite: database/app_database.sqlite]
+               │
+               ├─────────────────────────┐
+               ▼                         ▼
+   [GET /api/data/datasets]      [Chromium Puppeteer Export]
+               │                         │
+               ▼                         ▼
+      [Frontend Preview]         [PNG / JPG / PDF / ZIP]
+```
+
+1. **Storage Layer**: Data kependudukan tersimpan di SQLite secara terstruktur.
+2. **Client Binding**: Frontend mengambil data dataset aktif melalui REST API, melakukan kalkulasi metrik, dan menampilkannya ke dalam live preview.
+3. **High-Res Rendering**: Saat tombol export ditekan, template HTML dan payload data dikirimkan ke Chromium headless server untuk di-render sesuai dimensi presisi cetak/sosial.
 
 ---
 
-## 🔄 Alur Kerja Data (Data Flow)
+## 🧪 Menjalankan Pengujian (Testing)
 
-**Social Workspace:**
-```
-SQLite (database/app_database.sqlite)
-  → server/db/repositories/*
-  → GET /api/data/datasets/*
-  → src/services/db-service.js (fetch client)
-  → src/excel/datasetManager.js (state + fallback localStorage jika server unreachable)
-  → src/engine/dataset-service.js (activeDataset di memori)
-  → src/engine/binding.js (hitung rasio, persentase, ranking → isi data-bind di DOM)
-  → Preview browser  DAN  server/social-renderer.js (Puppeteer, untuk hasil export)
-```
-
-**Full Workspace:**
-```
-src/parsers/pdf-parser.js (preset) atau SQLite (server/db/repositories/fullDatasetRepository.js)
-  → src/engine/data-binder.js (dot-path binding ke DOM + Chart.js)
-  → Preview browser  DAN  server/renderer.js (Puppeteer, untuk hasil export)
-```
-
-> Preview (browser) dan hasil export (server) **wajib membaca dari sumber dataset aktif yang sama** — ini adalah bagian yang sudah diverifikasi lewat regression test (lihat `test/full_regression_suite.mjs`).
-
----
-
-## 🧪 Menjalankan Pengujian
-
-Project ini punya suite pengujian end-to-end berbasis Puppeteer (~30 skrip) di folder `test/`. Beberapa yang paling relevan dijalankan rutin:
+Proyek ini dilengkapi suite pengujian end-to-end berbasis Puppeteer di dalam folder `test/`:
 
 ```bash
-# Suite regresi utama (database, binding, viewport, exporter)
+# Menjalankan suite regresi komprehensif
 node test/full_regression_suite.mjs
 
-# Pergantian template & kecamatan
+# Pengujian pergantian template & wilayah kecamatan
 node test/test-all-template-switching.js
 
-# Antrean export & notifikasi
-node test/test-export-queue-blocking.js
-
-# Verifikasi image-waiter (anti-hang saat export)
+# Pengujian anti-hang pemuat gambar (Image Waiter)
 node test/test-image-waiter-fix.js
 
-# Verifikasi fitur dataset (aktivasi, hapus, deteksi tahun)
-node test/test-all-dataset-features.js
-node test/test-delete-dataset.js
-node test/test-year-detection-and-dedup.js
+# Pengujian proteksi antrean ekspor
+node test/test-export-queue-blocking.js
 ```
 
-Skrip lain di `test/` mencakup pengujian dialog kustom, sinkronisasi tema, live update social, dan verifikasi tahap implementasi (`verify-phase-a/b/c.js`) — jalankan sesuai kebutuhan area yang sedang diubah.
-
-> Pastikan server (`npm start`) berjalan di background sebelum menjalankan skrip test yang memanggil endpoint export.
+> **Catatan**: Pastikan server (`npm start`) aktif di background sebelum menjalankan skrip pengujian.
 
 ---
 
 ## 🩺 Troubleshooting
 
-| Gejala | Kemungkinan Penyebab | Solusi |
+| Masalah | Kemungkinan Penyebab | Solusi |
 |---|---|---|
-| Export macet / timeout `Runtime.callFunctionOn` | Aset gambar (logo/background) gagal dimuat | Pastikan semua path gambar di `img/` valid; image-waiter sudah dilindungi timeout race, tapi cek console server untuk detail |
-| Data di preview beda dengan hasil export | Dataset aktif berbeda antara sesi browser & request export | Pastikan dataset aktif di-set lewat `/api/data/datasets/:id/activate` sebelum export, jangan mengandalkan state browser saja |
-| Puppeteer gagal start (`Failed to launch browser`) | Dependensi sistem Chromium belum lengkap (khususnya di Linux server minimal) | Install dependensi sistem Chromium (lihat [dokumentasi Puppeteer](https://pptr.dev/troubleshooting)) |
-| Port 3000 sudah dipakai | Ada proses lain di port yang sama | Jalankan dengan `PORT=xxxx npm start` |
-| Data lama masih muncul setelah update dataset | Cache browser / state frontend belum refresh | Reload halaman; cek `src/excel/datasetManager.js` untuk logika fallback localStorage |
+| **Export macet / loading terus-menerus** | Aset gambar atau logo tidak dapat diakses | Periksa folder `img/` dan pastikan file gambar tersedia. Server telah dilengkapi timeout race condition otomatis. |
+| **Data preview berbeda dengan hasil export** | Dataset aktif pada server berbeda dengan cache browser | Lakukan refresh halaman atau pilih ulang dataset aktif di menu Kelola Dataset. |
+| **Gagal menjalankan Puppeteer di Linux Server** | Dependensi sistem pustaka Chromium belum terpasang | Pasang dependensi Chromium Linux (misalnya: `libnss3`, `libatk-bridge2.0-0`, `libxss1`). |
+| **Port 3000 sudah digunakan** | Ada aplikasi lain yang berjalan di port 3000 | Jalankan server dengan menentukan port alternatif via variabel `PORT`. |
 
 ---
 
-## 📚 Dokumentasi Tambahan
+## 📚 Dokumentasi Terkait
 
-- [`docs/PRD_V2.md`](docs/PRD_V2.md) — Product Requirements Document V2
-- [`docs/ARCHITECTURE_V2.md`](docs/ARCHITECTURE_V2.md) — Detail arsitektur pipeline data & export
+Untuk pemahaman teknis lebih dalam, silakan merujuk ke dokumen berikut:
+- [`docs/PRD_V2.md`](docs/PRD_V2.md) — Spesifikasi kebutuhan produk V2
+- [`docs/ARCHITECTURE_V2.md`](docs/ARCHITECTURE_V2.md) — Detail arsitektur pipeline data dan exporter
 - [`docs/DECISION_LOG.md`](docs/DECISION_LOG.md) — Architecture Decision Records (ADR)
-- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — Riwayat perubahan versi
-- [`PROJECT_KNOWLEDGE_BASE.md`](PROJECT_KNOWLEDGE_BASE.md) — Basis pengetahuan project (konteks tambahan)
-- [`SUMMARY_VERSI_1.md`](SUMMARY_VERSI_1.md) — Ringkasan versi 1
-
-> Dokumentasi arsitektur direview secara berkala agar tetap sinkron dengan kode aktual — jika menemukan bagian yang sudah tidak sesuai implementasi, mohon dilaporkan/diperbarui.
-
----
-
-## ⚠️ Batasan & Rencana Pengembangan
-
-- Pengembangan sistem otentikasi role-based multi-user lanjutan.
-- Dukungan auto-reload development dengan file-watcher.
-- Penyusunan konfigurasi terpusat berbasis environment variables.
-- Full Workspace masih bergantung pada preset statis (`pdf-parser.js`) sebagai sumber utama; integrasi penuh ke SQLite untuk workspace ini bersifat opsional dan dapat diaktifkan lewat `fullDatasetRepository.js`.
-- Belum ada CI/CD otomatis untuk menjalankan test suite pada setiap push/PR.
+- [`docs/CHANGELOG.md`](docs/CHANGELOG.md) — Riwayat perubahan dan rilis versi
 
 ---
 
 ## 📄 Lisensi & Hak Cipta
 
-Dikembangkan untuk kebutuhan internal Dinas Kependudukan dan Pencatatan Sipil (Disdukcapil) Kabupaten Tasikmalaya.
-Seluruh hak cipta dilindungi. Belum ada file `LICENSE` eksplisit di repositori ini — hubungi pemilik repositori untuk ketentuan penggunaan/distribusi lebih lanjut.
+Dikembangkan khusus untuk kebutuhan internal **Dinas Kependudukan dan Pencatatan Sipil (Disdukcapil) Kabupaten Tasikmalaya**.  
+Hak cipta dilindungi undang-undang.
